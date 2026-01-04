@@ -75,10 +75,8 @@ class Test3EntryQualityMonitor:
         if pattern_score >= 0.7:
             quality_checks['pattern_clean'] = True
             self.metrics['quality_factors']['pattern_clean'] += 1
-            self.metrics['clean_setups'] += 1
         else:
             self.metrics['quality_factors']['pattern_messy'] += 1
-            self.metrics['messy_setups'] += 1
         
         # Check volume
         volume_ratio = entry_data.get('volume_ratio', 1.0)
@@ -104,10 +102,11 @@ class Test3EntryQualityMonitor:
         else:
             self.metrics['quality_factors']['bias_misaligned'] += 1
         
-        # Multi-factor confirmation
+        # Multi-factor confirmation - ALL must pass (strict)
         passed_checks = sum(quality_checks.values())
-        if passed_checks >= 4:  # At least 4 out of 5
+        if passed_checks == 4:  # All 4 previous checks passed
             quality_checks['confirmation'] = True
+        # If any factor failed, confirmation automatically fails
         
         return quality_checks
     
@@ -116,13 +115,17 @@ class Test3EntryQualityMonitor:
         all_passed = all(quality_checks.values())
         
         if all_passed:
+            # This is a clean setup - ALL factors passed
             self.metrics['entries_allowed'] += 1
+            self.metrics['clean_setups'] += 1
             logger.info(f"✅ ENTRY ALLOWED: {entry_data.get('signal_type', 'Unknown')}")
             logger.info("   Quality Check:")
             for check, passed in quality_checks.items():
                 logger.info(f"      {check}: {'✅' if passed else '❌'}")
         else:
+            # Messy setup - at least one factor failed
             self.metrics['entries_blocked'] += 1
+            self.metrics['messy_setups'] += 1
             failed_checks = [k for k, v in quality_checks.items() if not v]
             reason = f"Quality gate failed: {', '.join(failed_checks)}"
             self.metrics['block_reasons'][reason] += 1
