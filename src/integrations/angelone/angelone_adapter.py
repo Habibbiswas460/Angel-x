@@ -23,11 +23,14 @@ from src.utils.logger import StrategyLogger
 
 logger = StrategyLogger.get_logger(__name__)
 
-# SmartAPI constants (if using real AngelOne SDK)
+# SmartAPI integration
 try:
-    from SmartApi import SmartConnect
+    from src.integrations.angelone.smartapi_integration import SmartAPIClient
+    SMARTAPI_AVAILABLE = True
 except ImportError:
-    SmartConnect = None
+    SmartAPIClient = None
+    SMARTAPI_AVAILABLE = False
+    logger.warning("SmartAPI integration not available")
 
 
 class AngelOneAdapter:
@@ -70,9 +73,20 @@ class AngelOneAdapter:
         self._stop_refresh = threading.Event()
         
         # SmartAPI client (if SDK available)
-        self._smartapi_client = None
+        self._smartapi_client: Optional[SmartAPIClient] = None
+        if SMARTAPI_AVAILABLE and not self.paper_trading:
+            try:
+                self._smartapi_client = SmartAPIClient(
+                    api_key=self.api_key,
+                    client_code=self.client_code,
+                    password=self.password,
+                    totp_secret=self.totp_secret
+                )
+                logger.info("SmartAPI client initialized")
+            except Exception as e:
+                logger.error(f"Failed to initialize SmartAPI client: {e}")
         
-        logger.info(f"AngelOneAdapter initialized (PAPER_TRADING={self.paper_trading})")
+        logger.info(f"AngelOneAdapter initialized (PAPER_TRADING={self.paper_trading}, SmartAPI={'ENABLED' if self._smartapi_client else 'DISABLED'})")
     
     # =========================================================================
     # AUTH & SESSION MANAGEMENT (Phase 1 Critical)
@@ -104,13 +118,30 @@ class AngelOneAdapter:
                     self._token_expires_at = time.time() + 3600
                     return True
                 
-                # TODO: Implement real REST login
-                # POST /auth/login with credentials + TOTP
-                # Extract token from response
-                logger.warning("Real AngelOne REST login not yet implemented → simulated token")
-                self._token = f"TEST_{int(time.time())}"
-                self._token_expires_at = time.time() + 3600
-                return True
+                # Real SmartAPI login
+                if self._smartapi_client:
+                    logger.info("Attempting real SmartAPI authentication...")
+                    if self._smartapi_client.login():
+                        self._token = self._smartapi_client.auth_token
+                        self._refresh_token = self._smartapi_client.refresh_token
+                        self._token_expires_at = time.time() + 3600  # Token valid for 1 hour
+                        logger.info("✓ Real SmartAPI login successful")
+                        
+                        # Get and log profile
+                        profile = self._smartapi_client.get_profile()
+                        if profile and 'data' in profile:
+                            name = profile['data'].get('name', 'Unknown')
+                            logger.info(f"  Logged in as: {name}")
+                        
+                        return True
+                    else:
+                        logger.error("SmartAPI login failed")
+                        return False
+                else:
+                    logger.warning("SmartAPI not available → simulated token")
+                    self._token = f"TEST_{int(time.time())}"
+                    self._token_expires_at = time.time() + 3600
+                    return True
                 
             except Exception as e:
                 logger.error(f"Login failed: {e}")
