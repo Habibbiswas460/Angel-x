@@ -12,6 +12,7 @@ Golden Rules:
 One NO → STOP immediately
 """
 import sys
+import json
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent
@@ -21,6 +22,22 @@ from config.test_config import GoldenRules, TestProgression
 from src.utils.logger import StrategyLogger
 
 logger = StrategyLogger.get_logger(__name__)
+
+GOLDEN_RULES_FILE = '/tmp/angel_x_golden_rules.json'
+
+
+def load_golden_rules():
+    """Load Golden Rules from persistence file"""
+    try:
+        if Path(GOLDEN_RULES_FILE).exists():
+            with open(GOLDEN_RULES_FILE, 'r') as f:
+                data = json.load(f)
+                GoldenRules.SL_NEVER_SKIPPED = data.get('SL_NEVER_SKIPPED')
+                GoldenRules.CALM_AFTER_LOSS = data.get('CALM_AFTER_LOSS')
+                GoldenRules.LOW_TRADES_ON_CHOP = data.get('LOW_TRADES_ON_CHOP')
+                GoldenRules.MENTALLY_CALM = data.get('MENTALLY_CALM')
+    except Exception as e:
+        logger.warning(f"Could not load Golden Rules: {e}")
 
 
 def validate_golden_rules():
@@ -33,6 +50,9 @@ def validate_golden_rules():
     print("⚠️ ALL must be YES to proceed to TEST-8 (Micro Live)")
     print("⚠️ One NO → STOP immediately")
     print("")
+    
+    # Load Golden Rules from persistence
+    load_golden_rules()
     
     # Check each rule
     print("="*80)

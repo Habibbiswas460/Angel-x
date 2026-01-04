@@ -173,6 +173,7 @@ class Test6SLFailureMonitor:
         
         # Update Golden Rules
         GoldenRules.SL_NEVER_SKIPPED = self.sl_never_skipped
+        GoldenRules.save_to_file()  # Persist to file
         
         return all(pf.values())
     

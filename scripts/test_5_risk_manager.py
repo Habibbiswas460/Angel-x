@@ -282,6 +282,16 @@ def main():
     
     passed = monitor.evaluate_pass_fail(report)
     
+    # Update Golden Rules
+    if passed:
+        from config.test_config import GoldenRules
+        # TEST-5 validates: Bot stays calm after losses (no revenge trading)
+        pf = report['pass_fail']
+        GoldenRules.CALM_AFTER_LOSS = pf.get('zero_trades_during_cooldown', False) and pf.get('cooldown_triggered', False)
+        GoldenRules.save_to_file()  # Persist to file
+        logger.info(f"\n🏆 Golden Rules Update:")
+        logger.info(f"   CALM_AFTER_LOSS: {GoldenRules.CALM_AFTER_LOSS}")
+    
     if passed:
         TestProgression.mark_completed('TEST-5')
         print("\n👉 Next: TEST-6 - SL FAILURE SIMULATION\n")

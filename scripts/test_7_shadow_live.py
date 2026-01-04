@@ -230,6 +230,7 @@ class Test7ShadowLiveMonitor:
         
         # Update Golden Rules
         GoldenRules.MENTALLY_CALM = pf['mentally_calm']
+        GoldenRules.save_to_file()  # Persist to file
         
         return all(pf.values())
     

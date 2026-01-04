@@ -292,6 +292,16 @@ def main():
     # Evaluate
     passed = monitor.evaluate_pass_fail(report)
     
+    # Update Golden Rules
+    if passed:
+        from config.test_config import GoldenRules
+        # TEST-2 validates: Low trades on chop days
+        pf = report['pass_fail']
+        GoldenRules.LOW_TRADES_ON_CHOP = pf.get('blocks_on_neutral', False) and pf.get('blocks_on_chop', False)
+        GoldenRules.save_to_file()  # Persist to file
+        logger.info(f"\n🏆 Golden Rules Update:")
+        logger.info(f"   LOW_TRADES_ON_CHOP: {GoldenRules.LOW_TRADES_ON_CHOP}")
+    
     if passed:
         TestProgression.mark_completed('TEST-2')
         print("\n👉 Next: TEST-3 - ENTRY QUALITY TEST\n")

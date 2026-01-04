@@ -290,6 +290,40 @@ class GoldenRules:
         return all(r is True for r in rules)
     
     @classmethod
+    def save_to_file(cls):
+        """Save Golden Rules to persistence file"""
+        import json
+        from pathlib import Path
+        
+        filepath = '/tmp/angel_x_golden_rules.json'
+        
+        # Load existing data first to preserve other values
+        existing_data = {
+            'SL_NEVER_SKIPPED': None,
+            'CALM_AFTER_LOSS': None,
+            'LOW_TRADES_ON_CHOP': None,
+            'MENTALLY_CALM': None
+        }
+        
+        if Path(filepath).exists():
+            try:
+                with open(filepath, 'r') as f:
+                    existing_data = json.load(f)
+            except:
+                pass
+        
+        # Update with current values
+        data = {
+            'SL_NEVER_SKIPPED': cls.SL_NEVER_SKIPPED if cls.SL_NEVER_SKIPPED is not None else existing_data.get('SL_NEVER_SKIPPED'),
+            'CALM_AFTER_LOSS': cls.CALM_AFTER_LOSS if cls.CALM_AFTER_LOSS is not None else existing_data.get('CALM_AFTER_LOSS'),
+            'LOW_TRADES_ON_CHOP': cls.LOW_TRADES_ON_CHOP if cls.LOW_TRADES_ON_CHOP is not None else existing_data.get('LOW_TRADES_ON_CHOP'),
+            'MENTALLY_CALM': cls.MENTALLY_CALM if cls.MENTALLY_CALM is not None else existing_data.get('MENTALLY_CALM')
+        }
+        
+        with open(filepath, 'w') as f:
+            json.dump(data, f, indent=2)
+    
+    @classmethod
     def report(cls) -> str:
         """Generate golden rules report"""
         report = "\n" + "="*60 + "\n"
