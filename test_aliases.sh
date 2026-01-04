@@ -15,10 +15,17 @@ alias test-6='python3 scripts/run_master_test.py --test TEST-6'
 alias test-7='python3 scripts/run_master_test.py --test TEST-7'
 alias test-8='python3 scripts/run_master_test.py --test TEST-8'
 
+# Golden Rules
+alias test-golden='python3 scripts/validate_golden_rules.py'
+
 # Run all tests
 alias test-all='python3 scripts/run_master_test.py --auto'
 
-echo "Test aliases loaded:"
-echo "  test-progress  - Show current progress"
-echo "  test-0 to test-8  - Run specific test"
-echo "  test-all  - Run all tests in sequence"
+echo "✅ Test aliases loaded!"
+echo ""
+echo "Commands:"
+echo "  test-progress   - Show current progress"
+echo "  test-0 to test-8   - Run specific test"
+echo "  test-golden     - Validate Golden Rules"
+echo "  test-all        - Run all tests in sequence"
+echo ""

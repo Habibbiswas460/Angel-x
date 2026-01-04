@@ -76,47 +76,34 @@ class MasterTestRunner:
         return main()
     
     def run_test_3(self) -> bool:
-        """Run TEST-3: Entry Quality (placeholder)"""
-        logger.info("TEST-3: Entry Quality - Implementation pending")
-        return False
+        """Run TEST-3: Entry Quality"""
+        from test_3_entry_quality import main
+        return main()
     
     def run_test_4(self) -> bool:
-        """Run TEST-4: Adaptive Veto (placeholder)"""
-        logger.info("TEST-4: Adaptive Veto - Implementation pending")
-        return False
+        """Run TEST-4: Adaptive Veto"""
+        from test_4_adaptive_veto import main
+        return main()
     
     def run_test_5(self) -> bool:
-        """Run TEST-5: Risk Manager (placeholder)"""
-        logger.info("TEST-5: Risk Manager - Implementation pending")
-        return False
+        """Run TEST-5: Risk Manager"""
+        from test_5_risk_manager import main
+        return main()
     
     def run_test_6(self) -> bool:
-        """Run TEST-6: SL Failure (placeholder)"""
-        logger.info("TEST-6: SL Failure - Implementation pending")
-        return False
+        """Run TEST-6: SL Failure"""
+        from test_6_sl_failure import main
+        return main()
     
     def run_test_7(self) -> bool:
-        """Run TEST-7: Shadow-Live (placeholder)"""
-        logger.info("TEST-7: Shadow-Live - Implementation pending")
-        return False
+        """Run TEST-7: Shadow-Live"""
+        from test_7_shadow_live import main
+        return main()
     
     def run_test_8(self) -> bool:
-        """Run TEST-8: Micro Live (placeholder)"""
-        # Check Golden Rules first
-        if not GoldenRules.all_passed():
-            logger.error("❌ Cannot run TEST-8: Golden Rules not satisfied")
-            logger.error("")
-            logger.error("Golden Rules Status:")
-            logger.error(f"   SL কখনো skip হয়নি? → {GoldenRules.SL_NEVER_SKIPPED}")
-            logger.error(f"   Loss এর পর bot চুপ ছিল? → {GoldenRules.CALM_AFTER_LOSS}")
-            logger.error(f"   Chop day-এ trade কম? → {GoldenRules.LOW_TRADES_ON_CHOP}")
-            logger.error(f"   তুমি mentally শান্ত? → {GoldenRules.MENTALLY_CALM}")
-            logger.error("")
-            logger.error("⚠️ One NO → STOP. Fix issues first.")
-            return False
-        
-        logger.info("TEST-8: Micro Live - Implementation pending")
-        return False
+        """Run TEST-8: Micro Live"""
+        from test_8_micro_live import main
+        return main()
     
     def run_single_test(self, test_name: str) -> bool:
         """Run a single test"""
