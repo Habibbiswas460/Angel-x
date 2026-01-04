@@ -1,26 +1,57 @@
-# ANGEL-X: Professional Options Scalping Strategy
+# ANGEL-X: Professional Options Scalping Strategy 🔥
 
 > **Greeks-Based Momentum Scalping for NIFTY/BANKNIFTY Weekly Options**  
 > Auto-Expiry Detection | Risk-First Position Sizing | Time-Based Exits
+
+**Current Version**: 10.0.0  
+**Status**: 🧪 **TEST MODE** (Master Test Plan Active)  
+**Broker**: AngelOne (SmartAPI SDK)  
+**Philosophy**: "boring system = professional system"
+
+---
+
+## 🚨 TESTING IN PROGRESS
+
+**We are currently in comprehensive testing phase before live deployment.**
+
+**Quick Start:**
+```bash
+# Check test progress
+python3 scripts/run_master_test.py --progress
+
+# Run specific test level
+python3 scripts/run_master_test.py --test TEST-0
+
+# See full test plan
+cat MASTER_TEST_QUICK_REF.md
+```
+
+📖 **[Master Test Plan Documentation](docs/MASTER_TEST_PLAN.md)**  
+📄 **[Quick Reference](MASTER_TEST_QUICK_REF.md)**
 
 ---
 
 ## 🎯 PROJECT STATUS
 
-**Phase 1 (✅ COMPLETE):** OpenAlgo → AngelOne Mock Adapter  
-**Phase 2 (✅ COMPLETE):** Real AngelOne SDK Integration  
-**Phase 3 (⏳ Next):** Greeks & Advanced Strategy  
+**Phase 1-9 (✅ COMPLETE):** Core strategy implementation  
+**Phase 10 (✅ COMPLETE):** Adaptive learning system  
+**Phase 11 (🧪 IN PROGRESS):** Master Test Plan (9 levels)
 
-### Current Implementation
-- ✅ Real AngelOne SmartAPI integration
-- ✅ TOTP-based authentication
-- ✅ Market data fetching (LTP, BID, ASK)
-- ✅ Order placement & management
-- ✅ Paper trading mode (safe testing)
-- ✅ Token auto-refresh
-- ✅ Error handling & resilience
+### Recently Completed
+- ✅ Complete AngelOne SmartAPI integration (100% compliant)
+- ✅ TOTP-based 2FA authentication
+- ✅ Real market data (LTP, option chain, Greeks)
+- ✅ Order management (place, modify, cancel)
+- ✅ Phase 10 adaptive learning (6/6 tests passing)
+- ✅ Risk management enhancements
+- ✅ Project cleanup (54 unnecessary files removed)
 
-**See:** [docs/PHASE2_DOCUMENTATION_INDEX.md](docs/PHASE2_DOCUMENTATION_INDEX.md)
+### Current Focus: Testing
+- 🧪 TEST-0: Pre-test safety setup
+- ⏳ TEST-1 to TEST-8: Progressive testing
+- 🏆 Golden Rules validation before live trading
+
+**See:** [docs/SMARTAPI_INTEGRATION_COMPLETE.md](docs/SMARTAPI_INTEGRATION_COMPLETE.md)
 
 ---
 

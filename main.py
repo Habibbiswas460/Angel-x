@@ -12,6 +12,7 @@ from threading import Lock
 
 # Configuration
 from config import config
+from config.test_config import get_active_config, TestProgression
 
 # Utils
 from src.utils.logger import StrategyLogger
@@ -60,6 +61,15 @@ class AngelXStrategy:
         logger.info("="*80)
         logger.info("ANGEL-X STRATEGY INITIALIZATION")
         logger.info("="*80)
+        
+        # Check if running in test mode
+        self.test_config = get_active_config()
+        if self.test_config:
+            test_name = getattr(self.test_config, '__name__', 'Unknown')
+            logger.info(f"🧪 TEST MODE ACTIVE: {test_name}")
+            logger.info(f"   DEMO_MODE: {getattr(self.test_config, 'DEMO_MODE', False)}")
+            logger.info(f"   ORDER_PLACEMENT: {getattr(self.test_config, 'ORDER_PLACEMENT', False)}")
+            logger.info("="*80)
         
         # Initialize network monitor for local network resilience
         self.network_monitor = get_network_monitor()
