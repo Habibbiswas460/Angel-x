@@ -335,9 +335,44 @@ class TestProgression:
         'TEST-4', 'TEST-5', 'TEST-6', 'TEST-7', 'TEST-8'
     ]
     
+    # Progress file for persistence
+    _progress_file = '/tmp/angel_x_test_progress.txt'
+    
+    @classmethod
+    def _load_progress(cls):
+        """Load progress from file"""
+        try:
+            import os
+            if os.path.exists(cls._progress_file):
+                with open(cls._progress_file, 'r') as f:
+                    cls.completed_tests = set(line.strip() for line in f if line.strip())
+                    
+                # Update current test
+                for i, test in enumerate(cls.test_order):
+                    if test not in cls.completed_tests:
+                        cls.current_test = test
+                        break
+                else:
+                    cls.current_test = cls.test_order[-1]  # All complete
+        except Exception:
+            pass
+    
+    @classmethod
+    def _save_progress(cls):
+        """Save progress to file"""
+        try:
+            with open(cls._progress_file, 'w') as f:
+                for test in cls.completed_tests:
+                    f.write(f"{test}\n")
+        except Exception:
+            pass
+    
     @classmethod
     def can_run_test(cls, test_name: str) -> bool:
         """Check if test can be run"""
+        # Load progress first
+        cls._load_progress()
+        
         if test_name not in cls.test_order:
             return False
         
@@ -357,7 +392,9 @@ class TestProgression:
     @classmethod
     def mark_completed(cls, test_name: str):
         """Mark test as completed"""
+        cls._load_progress()
         cls.completed_tests.add(test_name)
+        cls._save_progress()
         
         # Move to next test
         test_idx = cls.test_order.index(test_name)
@@ -367,6 +404,8 @@ class TestProgression:
     @classmethod
     def get_progress_report(cls) -> str:
         """Generate progress report"""
+        cls._load_progress()
+        
         report = "\n" + "="*60 + "\n"
         report += "🧪 ANGEL-X TEST PROGRESSION\n"
         report += "="*60 + "\n"
