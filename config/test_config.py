@@ -203,6 +203,7 @@ class Test6Config:
     ZERO_NAKED_POSITIONS = True   # No trade without SL ever
     FORCE_EXIT_ON_SL_FAIL = True  # Force market exit if SL fails
     MAX_SL_RETRY_ATTEMPTS = 3     # Max 3 retry attempts
+    MAX_DRAWDOWN_PERCENT = 10.0   # Maximum acceptable drawdown %
     
 
 # ============================================================================
