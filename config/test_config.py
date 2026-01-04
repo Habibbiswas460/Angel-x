@@ -140,6 +140,7 @@ class Test4Config:
     # Pass criteria
     ADAPTIVE_BLOCK_PERCENTAGE = 30  # Adaptive should block 30%+ entries
     MIN_CONFIDENCE_FOR_TRADE = 0.6  # Minimum 0.6 confidence to trade
+    ALLOW_TRADES_IN_CHOP = False    # Block trades in choppy regime
     
     # Logging
     LOG_ADAPTIVE_DECISIONS = True

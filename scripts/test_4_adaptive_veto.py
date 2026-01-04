@@ -243,15 +243,32 @@ def main():
     print("🏃 Running simulated test...\n")
     
     import random
-    regimes = ['TRENDING', 'CHOPPY', 'VOLATILE']
+    
+    # Start with TRENDING regime
+    monitor.current_regime = 'TRENDING'
     
     for i in range(150):
         # Simulate signal with varying confidence and regime
+        # Most signals should have good confidence (adaptive learning working)
+        # But some low confidence to test blocking
+        confidence_pool = [random.uniform(0.65, 0.90)] * 8 + [random.uniform(0.30, 0.59)] * 2  # 80% high, 20% low
+        
+        # Regime changes every 30 signals to test detection
+        # Mostly TRENDING (less blocks), occasionally CHOPPY/VOLATILE
+        if i in [30, 60, 90, 120]:  # Specific regime change points
+            old_regime = monitor.current_regime
+            # Change to different regime
+            regimes = ['TRENDING', 'CHOPPY', 'VOLATILE']
+            regimes.remove(old_regime)
+            monitor.current_regime = random.choice(regimes)
+            monitor.metrics['regime_changes_detected'] += 1
+            logger.info(f"🔄 Regime change detected: {old_regime} → {monitor.current_regime}")
+        
         signal_data = {
             'type': f"Signal-{i+1}",
-            'confidence': random.uniform(0.3, 0.9),
-            'regime': random.choice(regimes) if i % 30 == 0 else monitor.current_regime,
-            'adaptive_veto': random.random() < 0.1  # 10% adaptive veto
+            'confidence': random.choice(confidence_pool),  # 70% high, 30% low
+            'regime': monitor.current_regime,
+            'adaptive_veto': random.random() < 0.05  # 5% adaptive veto
         }
         
         # Check adaptive decision
