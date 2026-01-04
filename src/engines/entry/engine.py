@@ -76,16 +76,25 @@ class EntryEngine:
     ) -> Optional[EntryContext]:
         """Check if entry conditions are met - ALL must align"""
         
-        # Prerequisite 1: Bias permission
-        if bias_state == "NO_TRADE":
+        # Prerequisite 1: Bias permission (STRICT)
+        if bias_state == "NO_TRADE" or bias_state == "UNKNOWN":
             return None
         
-        # Prerequisite 2: Spread acceptable
+        # Prerequisite 2: Bias confidence must be strong
+        if bias_confidence < 60.0:  # Block low confidence
+            return None
+        
+        # Prerequisite 3: Spread acceptable
         if current_spread_percent > config.MAX_SPREAD_PERCENT:
             return None
         
-        # Prerequisite 3: Data valid
+        # Prerequisite 4: Data valid
         if bid <= 0 or ask <= 0 or current_ltp <= 0:
+            return None
+        
+        # Prerequisite 5: Detect choppy market - BLOCK if choppy
+        if self._is_market_choppy(current_ltp, prev_ltp, current_delta, prev_delta):
+            logger.info("Entry blocked: Choppy market detected")
             return None
         
         entry_signals = []
@@ -163,6 +172,24 @@ class EntryEngine:
         self.entry_history.append(entry_context)
         
         return entry_context
+    
+    def _is_market_choppy(self, current_ltp: float, prev_ltp: float, current_delta: float, prev_delta: float) -> bool:
+        """Detect choppy/sideways market conditions"""
+        # Check for weak price movement
+        price_change_pct = abs((current_ltp - prev_ltp) / prev_ltp * 100) if prev_ltp > 0 else 0
+        
+        # Check for delta oscillation (directional uncertainty)
+        delta_change = abs(current_delta - prev_delta)
+        
+        # Choppy if: small price moves + delta oscillating
+        if price_change_pct < 0.5 and delta_change > 0.1:
+            return True  # Choppy: small price, big delta swings
+        
+        # Choppy if: delta in weak zone (not strong directional)
+        if abs(current_delta) < 0.45 and abs(prev_delta) < 0.45:
+            return True  # Choppy: weak delta both periods
+        
+        return False
     
     def _should_reject_entry(self, current_oi, current_ltp, prev_ltp, current_iv, prev_iv, current_spread_percent, current_delta, prev_delta) -> bool:
         """Entry rejection rules"""

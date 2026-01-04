@@ -207,17 +207,17 @@ class BiasEngine:
         
         Returns:
             +1 = Strong bullish (delta ≥ 0.45)
-            0 = Weak/neutral (0.30-0.45)
+            0 = Weak/neutral (anything less than 0.45)
             -1 = Strong bearish (delta ≤ -0.45)
         """
-        if current_delta >= config.BULLISH_DELTA_MIN:
+        # STRICT: Only strong delta gets permission
+        if current_delta >= config.BULLISH_DELTA_MIN:  # ≥ 0.45
             return 1.0  # Strong bullish
-        elif current_delta <= config.BEARISH_DELTA_MAX:
+        elif current_delta <= config.BEARISH_DELTA_MAX:  # ≤ -0.45
             return -1.0  # Strong bearish
-        elif abs(current_delta) >= config.NO_TRADE_DELTA_WEAK:
-            return 0.0  # Weak
         else:
-            return 0.0  # Very weak, no permission
+            # Anything in between = NEUTRAL = NO PERMISSION
+            return 0.0  # Neutral/weak
     
     def _is_gamma_rising(self, current_gamma: float, prev_gamma: float) -> bool:
         """
@@ -356,15 +356,15 @@ class BiasEngine:
         
         BULLISH: delta ≥0.45 + gamma rising + oi-vol aligned + iv ok
         BEARISH: delta ≤-0.45 + gamma rising + oi-vol aligned + iv ok
-        NO_TRADE: anything else
+        NO_TRADE: anything else (STRICT enforcement)
         """
         
         confidence = 0.0
         bias = BiasState.NO_TRADE
         
-        # BULLISH conditions
-        if delta_signal > 0:  # Delta bullish
-            if gamma_rising and oi_vol_align >= 0:  # Gamma + OI alignment
+        # BULLISH conditions - ALL must be true
+        if delta_signal > 0:  # Delta bullish (≥ 0.45)
+            if gamma_rising and oi_vol_align >= 0.5:  # STRICT: Need strong alignment
                 if iv_health >= -0.3:  # IV not crushing
                     bias = BiasState.BULLISH
                     confidence = 85.0
@@ -372,12 +372,13 @@ class BiasEngine:
                     bias = BiasState.BULLISH
                     confidence = 60.0  # IV concern but still bullish
             else:
+                # Missing gamma or OI alignment = NO_TRADE
                 bias = BiasState.NO_TRADE
-                confidence = 40.0
+                confidence = 0.0  # Zero permission
         
-        # BEARISH conditions
-        elif delta_signal < 0:  # Delta bearish
-            if gamma_rising and oi_vol_align >= 0:  # Gamma + OI alignment
+        # BEARISH conditions - ALL must be true
+        elif delta_signal < 0:  # Delta bearish (≤ -0.45)
+            if gamma_rising and oi_vol_align >= 0.5:  # STRICT: Need strong alignment
                 if iv_health >= -0.3:  # IV not crushing
                     bias = BiasState.BEARISH
                     confidence = 85.0
@@ -385,17 +386,19 @@ class BiasEngine:
                     bias = BiasState.BEARISH
                     confidence = 60.0  # IV concern but still bearish
             else:
+                # Missing gamma or OI alignment = NO_TRADE
                 bias = BiasState.NO_TRADE
-                confidence = 40.0
+                confidence = 0.0  # Zero permission
         
-        # Weak delta = no permission
+        # NEUTRAL delta (between -0.45 and +0.45) = NO_TRADE
         else:
             bias = BiasState.NO_TRADE
-            confidence = 20.0
+            confidence = 0.0  # Zero permission in neutral zone
         
-        # Apply market structure modifier
+        # CHOPPY market override - always block
         if market_structure == "SIDEWAYS":
-            confidence *= 0.7  # Less confident in sideways
+            bias = BiasState.NO_TRADE
+            confidence = 0.0  # Zero permission in choppy conditions
         
         return bias, confidence
     

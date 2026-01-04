@@ -269,20 +269,17 @@ def main():
         # Record signal
         monitor.record_signal(signal_type, bias)
         
-        # Simulate decision
+        # Simulate decision (STRICT blocking)
         if bias == 'NEUTRAL':
-            # Should mostly block
-            if i % 10 == 0:  # Only 10% trade
-                monitor.record_trade(signal_type, bias)
-            else:
-                monitor.record_block(signal_type, "Bias neutral")
+            # ALWAYS block neutral bias - ZERO trades allowed
+            monitor.record_block(signal_type, "Bias neutral")
         
         elif is_choppy:
-            # Should block on chop
+            # ALWAYS block choppy market - ZERO trades allowed
             monitor.record_block(signal_type, "Market choppy")
         
         else:
-            # Normal processing
+            # Normal processing (bias = BULLISH or BEARISH, market = clean)
             if i % 4 == 0:  # 25% trade rate on clean signals
                 monitor.record_trade(signal_type, bias)
             else:
