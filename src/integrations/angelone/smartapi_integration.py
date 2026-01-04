@@ -207,9 +207,9 @@ class SmartAPIClient:
         quantity: int,
         price: float = 0,
         triggerprice: float = 0,
-        producttype: str = 'CARRYFORWARD',  # 'CARRYFORWARD', 'INTRADAY'
-        duration: str = 'DAY',
-        variety: str = 'NORMAL'
+        producttype: str = 'CARRYFORWARD',  # 'CARRYFORWARD', 'INTRADAY', 'DELIVERY'
+        duration: str = 'DAY',              # 'DAY', 'IOC'
+        variety: str = 'NORMAL'             # 'NORMAL', 'STOPLOSS', 'ROBO'
     ) -> Optional[Dict]:
         """Place an order.
         
@@ -233,6 +233,7 @@ class SmartAPIClient:
                 logger.error("Not authenticated")
                 return None
             
+            # Build order params according to AngelOne documentation
             order_params = {
                 "variety": variety,
                 "tradingsymbol": tradingsymbol,
@@ -245,9 +246,12 @@ class SmartAPIClient:
                 "price": str(price),
                 "squareoff": "0",
                 "stoploss": "0",
-                "quantity": str(quantity),
-                "triggerprice": str(triggerprice)
+                "quantity": str(quantity)
             }
+            
+            # Add triggerprice only for SL orders
+            if ordertype in ['STOPLOSS_LIMIT', 'STOPLOSS_MARKET']:
+                order_params["triggerprice"] = str(triggerprice)
             
             logger.info(f"Placing order: {transactiontype} {quantity} {tradingsymbol} @ {ordertype}")
             
@@ -294,6 +298,7 @@ class SmartAPIClient:
                 logger.error("Not authenticated")
                 return None
             
+            # Build modify params according to AngelOne documentation
             modify_params = {
                 "variety": variety,
                 "orderid": orderid,
@@ -307,7 +312,8 @@ class SmartAPIClient:
                 "exchange": "NFO"
             }
             
-            if triggerprice > 0:
+            # Add triggerprice only for SL orders
+            if triggerprice > 0 and ordertype in ['STOPLOSS_LIMIT', 'STOPLOSS_MARKET']:
                 modify_params['triggerprice'] = str(triggerprice)
             
             response = self.smart_connect.modifyOrder(modify_params)
