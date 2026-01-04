@@ -1,0 +1,29 @@
+# Angel-X Package Distribution Manifest
+# Specifies additional files to include in source distribution
+
+# Include documentation
+include README.md
+include LICENSE
+include requirements.txt
+recursive-include docs *.md *.txt
+
+# Include configuration examples
+include config/*.example.py
+
+# Include dashboard static assets
+recursive-include src/dashboard/templates *
+recursive-include src/dashboard/static *
+
+# Include test scripts
+recursive-include scripts *.py
+
+# Exclude compiled files and caches
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__
+global-exclude *.so
+global-exclude .DS_Store
+
+# Exclude logs and data
+prune logs
+prune data

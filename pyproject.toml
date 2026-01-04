@@ -1,0 +1,95 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "angelx"
+version = "10.0.0"
+description = "Angel-X: Institutional-grade algorithmic trading system for AngelOne with 10-phase adaptive intelligence"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Angel-X Team", email = "contact@angelx.dev"}
+]
+keywords = [
+    "trading", "algorithmic-trading", "options-trading", 
+    "angel-one", "angelone", "adaptive-learning", "machine-learning",
+    "risk-management", "quantitative-finance", "institutional-trading"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "pandas>=1.3.0",
+    "numpy>=1.21.0",
+    "requests>=2.26.0",
+    "websocket-client>=1.2.0",
+    "flask>=2.0.0",
+    "python-dotenv>=0.19.0",
+    "pyyaml>=5.4.0",
+    "scipy>=1.7.0",
+    "scikit-learn>=0.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=3.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+    "mypy>=0.950",
+    "isort>=5.10.0",
+]
+production = [
+    "gunicorn>=20.1.0",
+    "supervisor>=4.2.0",
+]
+
+[project.scripts]
+angelx = "main:main"
+angelx-dashboard = "src.dashboard.dashboard:main"
+angelx-version = "src:print_banner"
+
+[project.urls]
+Homepage = "https://github.com/angelx/angelx"
+Documentation = "https://github.com/angelx/angelx/tree/main/docs"
+Repository = "https://github.com/angelx/angelx"
+Issues = "https://github.com/angelx/angelx/issues"
+
+[tool.setuptools]
+packages = ["src", "src.core", "src.engines", "src.adaptive", "src.dashboard", "src.utils", "config"]
+
+[tool.setuptools.package-data]
+"src.dashboard" = ["templates/*", "static/*", "static/css/*", "static/js/*"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["scripts"]
+python_files = "test_*.py"
+python_functions = "test_*"
+addopts = "-v --tb=short"
