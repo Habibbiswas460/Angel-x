@@ -70,27 +70,25 @@ class Test5RiskManagerMonitor:
         
         # Check daily limit
         if self.daily_limit_hit:
-            self.metrics['trades_after_daily_limit'] += 1
-            logger.error(f"❌ CRITICAL: Trade after daily limit!")
+            logger.error(f"❌ CRITICAL: Trade attempt after daily limit!")
             logger.error(f"   Daily PnL: ₹{self.daily_pnl:.0f}")
             logger.error(f"   Limit: ₹{self.config.MAX_DAILY_LOSS:.0f}")
             block_reason = "daily_limit_hit"
         
         # Check cooldown
-        if self.cooldown_until and datetime.now() < self.cooldown_until:
-            self.metrics['trades_during_cooldown'] += 1
+        elif self.cooldown_until and datetime.now() < self.cooldown_until:
             remaining = (self.cooldown_until - datetime.now()).seconds // 60
-            logger.error(f"❌ CRITICAL: Trade during cooldown!")
+            logger.error(f"❌ CRITICAL: Trade attempt during cooldown!")
             logger.error(f"   Cooldown remaining: {remaining} minutes")
             block_reason = "in_cooldown"
         
         # Check position size
-        if position_size > self.config.MAX_POSITION_SIZE:
-            self.metrics['oversized_positions'] += 1
-            logger.error(f"❌ CRITICAL: Oversized position!")
+        elif position_size > self.config.MAX_POSITION_SIZE:
+            logger.error(f"❌ CRITICAL: Oversized position attempt!")
             logger.error(f"   Size: {position_size} | Max: {self.config.MAX_POSITION_SIZE}")
             block_reason = "position_too_large"
         
+        # BLOCK the trade if violation detected
         if block_reason:
             return {'allowed': False, 'reason': block_reason}
         

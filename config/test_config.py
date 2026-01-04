@@ -173,8 +173,12 @@ class Test5Config:
     
     # Thresholds for testing
     TEST_DAILY_LOSS_LIMIT = -500   # ₹500 daily loss limit for test
+    MAX_DAILY_LOSS = -500          # Same as TEST_DAILY_LOSS_LIMIT
     TEST_CONSECUTIVE_LOSS_LIMIT = 2  # 2 consecutive losses
+    CONSECUTIVE_LOSS_LIMIT = 2     # Alias for test script
     TEST_COOLDOWN_MINUTES = 15     # 15 min cooldown after loss
+    COOLDOWN_MINUTES = 15          # Alias for test script
+    MAX_POSITION_SIZE = 25         # Maximum lot size allowed
     
 
 # ============================================================================
