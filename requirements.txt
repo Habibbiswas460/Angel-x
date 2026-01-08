@@ -9,3 +9,13 @@ websocket-client>=1.6.0   # WebSocket for live market data
 # Core dependencies
 pandas>=2.2.0
 yfinance>=0.2.40
+
+# Dashboard backend
+flask>=2.3.0
+flask-cors>=3.0.10
+
+# Env management
+python-dotenv>=1.0.0
+
+# Optional: PostgreSQL for ML database
+psycopg2-binary>=2.9.9

@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.adaptive.adaptive_controller import AdaptiveController
-from src.adaptive.learning_engine import TradeFeatures, FeatureBucket
+from app.adaptive.adaptive_controller import AdaptiveController
+from app.adaptive.learning_engine import TradeFeatures, FeatureBucket
 from datetime import datetime, timedelta
 import random
 

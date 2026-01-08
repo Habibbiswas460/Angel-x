@@ -15,7 +15,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from config.test_config import TestProgression, GoldenRules
-from src.utils.logger import StrategyLogger
+from app.utils.logger import StrategyLogger
 
 logger = StrategyLogger.get_logger(__name__)
 

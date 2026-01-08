@@ -15,27 +15,29 @@ from config import config
 from config.test_config import get_active_config, TestProgression
 
 # Utils
-from src.utils.logger import StrategyLogger
-from src.utils.data_feed import DataFeed
-from src.utils.trade_journal import TradeJournal
-from src.utils.network_resilience import get_network_monitor
-from src.utils.greeks_data_manager import GreeksDataManager
+from app.utils.logger import StrategyLogger
+from app.integrations.data_feeds.data_feed import DataFeed
+from app.utils.trade_journal import TradeJournal
+from app.utils.network_resilience import get_network_monitor
+from app.engines.greeks.greeks_data_manager import GreeksDataManager
 
 # Engines
-from src.engines.bias_engine import BiasEngine, BiasState
-from src.engines.strike_selection_engine import StrikeSelectionEngine
-from src.engines.entry_engine import EntryEngine, EntrySignal
-from src.engines.trap_detection_engine import TrapDetectionEngine
+from app.engines.market_bias.engine import BiasEngine, BiasState
+from app.engines.strike_selection.engine import StrikeSelectionEngine
+from app.engines.entry.engine import EntryEngine, EntrySignal
+from app.engines.trap_detection.engine import TrapDetectionEngine
+from app.engines.portfolio.multi_strike_engine import MultiStrikePortfolioEngine
 
 # Adaptive System (Phase 10)
-from src.adaptive.adaptive_controller import AdaptiveController
+from app.adaptive.adaptive_controller import AdaptiveController
 
 # Core
-from src.core.position_sizing import PositionSizing
-from src.core.order_manager import OrderManager, OrderAction, OrderType, ProductType
-from src.core.trade_manager import TradeManager
-from src.core.expiry_manager import ExpiryManager
-from src.utils.options_helper import OptionsHelper
+from app.core.position_sizing import PositionSizing
+from app.core.order_manager import OrderManager, OrderAction, OrderType, ProductType
+from app.core.trade_manager import TradeManager
+from app.core.expiry_manager import ExpiryManager
+from app.utils.options_helper import OptionsHelper
+from app.integration_hub import get_integration_hub
 
 logger = StrategyLogger.get_logger(__name__)
 
@@ -87,6 +89,8 @@ class AngelXStrategy:
         self.trade_manager = TradeManager()
         self.trade_journal = TradeJournal()
         self.options_helper = OptionsHelper()
+        self.multi_strike_engine = MultiStrikePortfolioEngine(self.options_helper)
+        self.integration = get_integration_hub()
         
         # Greeks data manager for real-time Greeks and OI
         self.greeks_manager = GreeksDataManager()
@@ -482,7 +486,7 @@ class AngelXStrategy:
                                     risk_amount = qty * (entry_context.entry_price - position.hard_sl_price)
                                     
                                     # Risk manager check
-                                    from src.core.risk_manager import RiskManager
+                                    from app.core.risk_manager import RiskManager
                                     risk_mgr = RiskManager()
                                     can_trade, risk_reason = risk_mgr.can_take_trade({
                                         'quantity': qty,
@@ -499,8 +503,21 @@ class AngelXStrategy:
                                     logger.info(f"✅ Risk Manager: APPROVED")
                                     logger.info(f"   Daily P&L: {risk_mgr.get_daily_pnl():.2f}, Daily Risk: {risk_mgr.get_daily_risk_used():.2f}%")
                                     
+                                    # Entry tags for journaling
+                                    if hasattr(entry_context, 'entry_reason_tags') and entry_context.entry_reason_tags:
+                                        entry_tags = entry_context.entry_reason_tags
+                                    elif hasattr(entry_context, 'entry_reason') and entry_context.entry_reason:
+                                        entry_tags = [str(entry_context.entry_reason)]
+                                    else:
+                                        entry_tags = [entry_signal.value if 'entry_signal' in locals() else 'entry']
+                                    
+                                    current_exp_for_entry = self.expiry_manager.get_current_expiry()
+                                    expiry_date_str = current_exp_for_entry.expiry_date if current_exp_for_entry else None
+                                    
                                     # Enter trade
                                     trade = self.trade_manager.enter_trade(
+                                        underlying=config.PRIMARY_UNDERLYING,
+                                        expiry_date=expiry_date_str,
                                         option_type=entry_context.option_type,
                                         strike=entry_context.strike,
                                         entry_price=entry_context.entry_price,
@@ -510,8 +527,17 @@ class AngelXStrategy:
                                         entry_theta=entry_context.entry_theta,
                                         entry_iv=entry_context.entry_iv,
                                         sl_price=position.hard_sl_price,
-                                        target_price=position.target_price
+                                        target_price=position.target_price,
+                                        entry_reason_tags=entry_tags
                                     )
+
+                                    # Multi-strike planning (ATM + hedges) if enabled
+                                    if getattr(config, 'USE_MULTI_STRIKE', False):
+                                        planned_legs = self.multi_strike_engine.plan_portfolio(
+                                            base_strike=entry_context.strike,
+                                            option_type=entry_context.option_type
+                                        )
+                                        logger.info(f"Multi-strike plan: {[f'{leg.option_type} {leg.strike} {leg.action}' for leg in planned_legs]}")
                                     
                                     # Start tracking Greeks for this symbol
                                     if trade and getattr(config, 'USE_REAL_GREEKS_DATA', True):
@@ -687,16 +713,30 @@ class AngelXStrategy:
                             )
                             
                             if exit_reason:
-                                # Exit trade
-                                self.trade_manager.exit_trade(trade, exit_reason)
+                                # Exit order execution (paper/live aware)
+                                exit_order = None
+                                try:
+                                    exit_order = self.trade_manager.execute_exit_order(trade, option_symbol, current_price)
+                                    if exit_order and isinstance(exit_order, dict) and exit_order.get('status') not in (None, 'success'):
+                                        logger.warning(f"⚠️ Exit order response indicates failure: {exit_order}")
+                                except Exception as exit_exc:
+                                    logger.error(f"Exit order execution failed: {exit_exc}")
+                                
+                                # Exit trade with final snapshot
+                                self.trade_manager.exit_trade(
+                                    trade,
+                                    exit_reason,
+                                    exit_price=current_price,
+                                    exit_delta=current_delta,
+                                    exit_gamma=current_gamma,
+                                    exit_theta=current_theta,
+                                    exit_iv=current_iv
+                                )
                                 
                                 # 🧠 Record trade outcome for adaptive learning (Phase 10)
                                 if self.adaptive.enabled:
                                     try:
-                                        # Calculate holding time
                                         holding_minutes = (trade.exit_time - trade.entry_time).total_seconds() / 60
-                                        
-                                        # Record outcome
                                         self.adaptive.record_trade_outcome({
                                             'entry_time': trade.entry_time,
                                             'exit_time': trade.exit_time,
@@ -719,38 +759,47 @@ class AngelXStrategy:
                                     self.greeks_manager.untrack_symbol(option_symbol)
                                     logger.info(f"Stopped tracking Greeks for {option_symbol}")
                                 
-                                # Log to journal
+                                # Log to journal with real timestamps and greeks snapshot
                                 self.trade_journal.log_trade(
-                                    underlying=config.PRIMARY_UNDERLYING,
+                                    underlying=trade.underlying,
                                     strike=trade.strike,
                                     option_type=trade.option_type,
-                                    expiry_date="weekly",
+                                    expiry_date=trade.expiry_date or "unknown",
                                     entry_price=trade.entry_price,
-                                    exit_price=trade.current_price,
+                                    exit_price=trade.exit_price,
                                     qty=trade.quantity,
                                     entry_delta=trade.entry_delta,
                                     entry_gamma=trade.entry_gamma,
                                     entry_theta=trade.entry_theta,
                                     entry_vega=0,
                                     entry_iv=trade.entry_iv,
-                                    exit_delta=0,
-                                    exit_gamma=0,
-                                    exit_theta=0,
+                                    exit_delta=trade.exit_delta,
+                                    exit_gamma=trade.exit_gamma,
+                                    exit_theta=trade.exit_theta,
                                     exit_vega=0,
-                                    exit_iv=25.0,
+                                    exit_iv=trade.exit_iv,
                                     entry_spread=0.5,
                                     exit_spread=0.5,
-                                    entry_reason_tags=['demo'],
-                                    exit_reason_tags=[exit_reason],
+                                    entry_reason_tags=trade.entry_reason_tags,
+                                    exit_reason_tags=trade.exit_reason_tags or [exit_reason],
                                     original_sl_price=trade.sl_price,
                                     original_sl_percent=7.0,
                                     original_target_price=trade.target_price,
-                                    original_target_percent=7.0
+                                    original_target_percent=7.0,
+                                    entry_time=trade.entry_time,
+                                    exit_time=trade.exit_time
                                 )
                                 
                                 self.daily_pnl += trade.pnl
                                 self.daily_trades += 1
                     
+                    # Sync dashboard/analytics once per loop
+                    if getattr(config, 'DASHBOARD_ENABLED', True):
+                        try:
+                            self.integration.update_position_data(self.trade_manager, self.greeks_manager)
+                        except Exception as dash_exc:
+                            logger.error(f"Dashboard sync failed: {dash_exc}")
+
                     time.sleep(1)
                 
                 except Exception as e:

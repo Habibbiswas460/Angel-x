@@ -1,0 +1,114 @@
+{
+  "dashboard": {
+    "title": "Angel-X Trading Metrics",
+    "uid": "angel-x-trading",
+    "version": 1,
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Trades Executed",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "increase(trades_executed_total{job=\"angel-x\"}[1h])",
+            "legendFormat": "Last Hour"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Signals Generated",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 3, "y": 0},
+        "targets": [
+          {
+            "expr": "increase(signals_generated_total{job=\"angel-x\"}[1h])",
+            "legendFormat": "Last Hour"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Win Rate (%)",
+        "type": "gauge",
+        "gridPos": {"h": 4, "w": 3, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "trades_won_total{job=\"angel-x\"} / trades_executed_total{job=\"angel-x\"} * 100",
+            "legendFormat": "Win Rate"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Risk Exposure Ratio",
+        "type": "gauge",
+        "gridPos": {"h": 4, "w": 3, "x": 9, "y": 0},
+        "targets": [
+          {
+            "expr": "risk_exposure_ratio{job=\"angel-x\"} * 100",
+            "legendFormat": "Exposure %"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Trading Activity (5m rate)",
+        "type": "graph",
+        "gridPos": {"h": 4, "w": 12, "x": 0, "y": 4},
+        "targets": [
+          {
+            "expr": "rate(trades_executed_total{job=\"angel-x\"}[5m])",
+            "legendFormat": "Trades/min"
+          },
+          {
+            "expr": "rate(signals_generated_total{job=\"angel-x\"}[5m])",
+            "legendFormat": "Signals/min"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "P&L Over Time",
+        "type": "graph",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "trading_profit_loss_cumulative{job=\"angel-x\"}",
+            "legendFormat": "Cumulative P&L"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Active Positions",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+        "targets": [
+          {
+            "expr": "active_positions_count{job=\"angel-x\"}",
+            "legendFormat": "Positions"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Greeks Health",
+        "type": "graph",
+        "gridPos": {"h": 4, "w": 12, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "greeks_calculation_errors_total{job=\"angel-x\"}",
+            "legendFormat": "Errors"
+          },
+          {
+            "expr": "greeks_calculation_duration_seconds_bucket{job=\"angel-x\"}",
+            "legendFormat": "Duration"
+          }
+        ]
+      }
+    ]
+  }
+}

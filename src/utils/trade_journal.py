@@ -134,12 +134,12 @@ class TradeJournal:
         exit_iv: float,
         entry_spread: float,
         exit_spread: float,
-        entry_reason_tags: List[str],
-        exit_reason_tags: List[str],
-        original_sl_price: float,
-        original_sl_percent: float,
-        original_target_price: float,
-        original_target_percent: float,
+        entry_reason_tags: Optional[List[str]] = None,
+        exit_reason_tags: Optional[List[str]] = None,
+        original_sl_price: float = 0.0,
+        original_sl_percent: float = 0.0,
+        original_target_price: float = 0.0,
+        original_target_percent: float = 0.0,
         entry_bid: float = 0,
         entry_ask: float = 0,
         entry_volume: int = 0,
@@ -147,18 +147,22 @@ class TradeJournal:
         exit_volume: int = 0,
         exit_oi: int = 0,
         rule_violations: Optional[List[str]] = None,
-        notes: str = ""
+        notes: str = "",
+        entry_time: Optional[datetime] = None,
+        exit_time: Optional[datetime] = None
     ) -> TradeRecord:
         """
         Log a completed trade
         """
+        entry_reason_tags = entry_reason_tags or []
+        exit_reason_tags = exit_reason_tags or []
         self.trade_counter += 1
         trade_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{self.trade_counter:03d}"
         
-        now = datetime.now()
-        # Estimate exit time (for real implementation, use actual exit time)
-        exit_time = now
-        duration = 60  # Default 1 minute (will be updated when trade actually exits)
+        entry_ts = entry_time or datetime.now()
+        exit_ts = exit_time or datetime.now()
+        duration = int((exit_ts - entry_ts).total_seconds())
+        duration = max(duration, 1)
         
         # Calculate P&L
         pnl_amount = (exit_price - entry_price) * qty
@@ -174,8 +178,8 @@ class TradeJournal:
         # Create record
         record = TradeRecord(
             trade_id=trade_id,
-            timestamp_entry=now,
-            timestamp_exit=exit_time,
+            timestamp_entry=entry_ts,
+            timestamp_exit=exit_ts,
             duration_seconds=duration,
             underlying=underlying,
             strike=strike,

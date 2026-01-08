@@ -1,15 +1,17 @@
 """
 Options Helper Module
-Handles options-specific operations using OpenAlgo:
-- Options orders (ATM, ITM, OTM)
-- Options multi-leg orders (Iron Condor, Spreads)
-- Option chain data
-- Options Greeks
-- Synthetic futures
-- Option symbol lookup
+Handles options-specific operations.
+
+Note: OpenAlgo dependency is optional. If unavailable, this helper
+falls back to a "disabled" client that logs attempts instead of
+executing orders. This keeps the main app runnable in demo/paper mode
+without installing openalgo.
 """
 
-from openalgo import api
+try:
+    from openalgo import api  # type: ignore
+except ImportError:  # Graceful degradation when openalgo is not installed
+    api = None
 from config import config
 from src.utils.logger import StrategyLogger
 logger = StrategyLogger.get_logger(__name__)
@@ -21,11 +23,15 @@ class OptionsHelper:
     """
     
     def __init__(self):
-        self.client = api(
-            api_key=config.OPENALGO_API_KEY,
-            host=config.OPENALGO_HOST,
-            ws_url=config.OPENALGO_WS_URL
-        )
+        if api is None:
+            logger.warning("OpenAlgo not installed; OptionsHelper running in disabled mode")
+            self.client = None
+        else:
+            self.client = api(
+                api_key=getattr(config, "OPENALGO_API_KEY", None),
+                host=getattr(config, "OPENALGO_HOST", None),
+                ws_url=getattr(config, "OPENALGO_WS_URL", None)
+            )
         
         self.strategy = config.STRATEGY_NAME
         
@@ -76,6 +82,10 @@ class OptionsHelper:
             dict: Order response with symbol and orderid
         """
         try:
+            if not self.client:
+                logger.error("OptionsHelper disabled (openalgo not installed); order not sent")
+                return None
+            
             if exchange is None:
                 exchange = config.UNDERLYING_EXCHANGE
             
@@ -129,6 +139,10 @@ class OptionsHelper:
             dict: Multi-order response with results for each leg
         
         Example legs for Iron Condor:
+            if not self.client:
+                logger.error("OptionsHelper disabled (openalgo not installed); multi-leg order not sent")
+                return None
+            
             [
                 {"offset": "OTM6", "option_type": "CE", "action": "BUY", "quantity": 75},
                 {"offset": "OTM6", "option_type": "PE", "action": "BUY", "quantity": 75},
@@ -179,6 +193,10 @@ class OptionsHelper:
             dict: Option chain with CE/PE data for each strike
         """
         try:
+            if not self.client:
+                logger.error("OptionsHelper disabled (openalgo not installed); option chain unavailable")
+                return None
+            
             if exchange is None:
                 exchange = config.UNDERLYING_EXCHANGE
             

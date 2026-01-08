@@ -7,8 +7,23 @@ import pyotp
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-from smartapi import SmartConnect
-from smartapi.smartExceptions import SmartAPIException
+
+# SmartAPI import (handles both smartapi and SmartApi package names)
+try:
+    from smartapi import SmartConnect
+    from smartapi.smartExceptions import SmartAPIException
+except ImportError:
+    try:
+        from SmartApi import SmartConnect  # type: ignore
+        from SmartApi.smartExceptions import SmartAPIException  # type: ignore
+    except ImportError as exc:  # pragma: no cover
+        SmartConnect = None  # type: ignore
+        SmartAPIException = Exception  # type: ignore
+        _smartapi_import_error = exc
+    else:
+        _smartapi_import_error = None
+else:
+    _smartapi_import_error = None
 
 from config import config
 from src.utils.logger import StrategyLogger
@@ -34,7 +49,7 @@ class SmartAPIClient:
         self.totp_secret = totp_secret
         
         # SmartConnect instance
-        self.smart_connect: Optional[SmartConnect] = None
+        self.smart_connect: Optional[SmartConnect] = None  # type: ignore
         self.auth_token: Optional[str] = None
         self.refresh_token: Optional[str] = None
         self.feed_token: Optional[str] = None
@@ -65,28 +80,40 @@ class SmartAPIClient:
         Returns: True if login successful, False otherwise
         """
         try:
+            if SmartConnect is None:
+                raise ImportError(f"SmartAPI SDK not importable: {_smartapi_import_error}")
+
             logger.info("Attempting SmartAPI login...")
             
             # Initialize SmartConnect
             self.smart_connect = SmartConnect(api_key=self.api_key)
             
-            # Generate TOTP
+            # Use low-level call to include TOTP explicitly
             totp_code = self.generate_totp()
-            
-            # Login
-            data = self.smart_connect.generateSession(
-                clientCode=self.client_code,
-                password=self.password,
-                totp=totp_code
-            )
-            
+            payload = {
+                "clientcode": self.client_code,
+                "password": self.password,
+                "totp": totp_code,
+            }
+            data = self.smart_connect._postRequest("api.login", payload)
+
             if data and data.get('status'):
-                self.auth_token = data['data']['jwtToken']
-                self.refresh_token = data['data']['refreshToken']
-                self.feed_token = self.smart_connect.getfeedToken()
-                
+                jwt_token = data['data']['jwtToken']
+                refresh_token = data['data']['refreshToken']
+                feed_token = data['data'].get('feedToken') or data['data'].get('feedtoken')
+
+                self.auth_token = jwt_token
+                self.refresh_token = refresh_token
+                self.feed_token = feed_token
+
+                self.smart_connect.setAccessToken(jwt_token)
+                self.smart_connect.setRefreshToken(refresh_token)
+                if feed_token:
+                    self.smart_connect.setFeedToken(feed_token)
+
                 logger.info("✓ SmartAPI login successful")
-                logger.info(f"  Feed Token: {self.feed_token[:20]}...")
+                if self.feed_token:
+                    logger.info(f"  Feed Token: {str(self.feed_token)[:20]}...")
                 return True
             else:
                 logger.error(f"Login failed: {data}")

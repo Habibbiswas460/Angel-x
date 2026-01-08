@@ -10,7 +10,7 @@ from enum import Enum
 from typing import Optional
 # OpenAlgo dependency removed; use AngelOne adapter instead
 try:
-    from src.utils.angelone_client import AngelOneClient
+    from src.integrations.angelone.angelone_client import AngelOneClient
     _angelone_import_error = None
 except Exception as exc:
     AngelOneClient = None
@@ -59,7 +59,7 @@ class OrderManager:
                         api_key=getattr(config, 'BROKER_API_KEY', None),
                         ws_url=getattr(config, 'BROKER_WS_URL', None),
                         client_id=getattr(config, 'BROKER_CLIENT_ID', None),
-                        config=config
+                        config_obj=config
                     )
                     logger.info("OrderManager initialized with AngelOne adapter")
                 except Exception as e:

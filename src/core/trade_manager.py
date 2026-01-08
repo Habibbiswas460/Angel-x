@@ -6,12 +6,12 @@ Greek-based exits: Delta weakness, Gamma rollover, Theta damage, IV crush, OI-Pr
 
 import logging
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
 from config import config
 from src.utils.logger import StrategyLogger
-from src.core.order_manager import OrderManager
+from src.core.order_manager import OrderManager, OrderAction, OrderType, ProductType
 from src.utils.slippage_calculator import SlippageCalculator
 
 logger = StrategyLogger.get_logger(__name__)
@@ -23,21 +23,31 @@ class Trade:
     trade_id: str
     entry_time: datetime
     exit_time: Optional[datetime]
+    underlying: str
+    expiry_date: Optional[str]
     option_type: str
     strike: int
     entry_price: float
     current_price: float
+    exit_price: float
     quantity: int
     entry_delta: float
     entry_gamma: float
     entry_theta: float
     entry_iv: float
+    exit_delta: float
+    exit_gamma: float
+    exit_theta: float
+    exit_iv: float
     sl_price: float
     target_price: float
     status: str  # OPEN, CLOSED_PROFIT, CLOSED_LOSS, CLOSED_SL
-    exit_reason: Optional[str]
-    pnl: float
-    pnl_percent: float
+    exit_reason: Optional[str] = None
+    entry_reason_tags: List[str] = field(default_factory=list)
+    exit_reason_tags: List[str] = field(default_factory=list)
+    rule_violations: List[str] = field(default_factory=list)
+    pnl: float = 0.0
+    pnl_percent: float = 0.0
     time_in_trade_sec: int = 0  # Added for expiry-day management
     # Realistic costs
     entry_slippage: float = 0.0  # Slippage on entry in rupees
@@ -73,6 +83,8 @@ class TradeManager:
     
     def enter_trade(
         self,
+        underlying: str,
+        expiry_date: Optional[str],
         option_type: str,
         strike: int,
         entry_price: float,
@@ -82,7 +94,9 @@ class TradeManager:
         entry_theta: float,
         entry_iv: float,
         sl_price: float,
-        target_price: float
+        target_price: float,
+        entry_reason_tags: Optional[List[str]] = None,
+        rule_violations: Optional[List[str]] = None
     ) -> Trade:
         """
         Enter a new trade
@@ -97,19 +111,29 @@ class TradeManager:
             trade_id=trade_id,
             entry_time=datetime.now(),
             exit_time=None,
+            underlying=underlying,
+            expiry_date=expiry_date,
             option_type=option_type,
             strike=strike,
             entry_price=entry_price,
             current_price=entry_price,
+            exit_price=entry_price,
             quantity=quantity,
             entry_delta=entry_delta,
             entry_gamma=entry_gamma,
             entry_theta=entry_theta,
             entry_iv=entry_iv,
+            exit_delta=entry_delta,
+            exit_gamma=entry_gamma,
+            exit_theta=entry_theta,
+            exit_iv=entry_iv,
             sl_price=sl_price,
             target_price=target_price,
             status="OPEN",
             exit_reason=None,
+            entry_reason_tags=entry_reason_tags or [],
+            exit_reason_tags=[],
+            rule_violations=rule_violations or [],
             pnl=0.0,
             pnl_percent=0.0
         )
@@ -309,15 +333,28 @@ class TradeManager:
         
         return None
     
-    def exit_trade(self, trade: Trade, exit_reason: str) -> Trade:
+    def exit_trade(
+        self,
+        trade: Trade,
+        exit_reason: str,
+        exit_price: Optional[float] = None,
+        exit_delta: Optional[float] = None,
+        exit_gamma: Optional[float] = None,
+        exit_theta: Optional[float] = None,
+        exit_iv: Optional[float] = None
+    ) -> Trade:
         """
-        Exit a trade
-        
-        Returns:
-            Updated Trade object with exit details
+        Exit a trade and capture the final snapshot for journaling.
         """
         trade.exit_time = datetime.now()
         trade.exit_reason = exit_reason
+        trade.exit_price = exit_price if exit_price is not None else trade.current_price
+        trade.exit_delta = exit_delta if exit_delta is not None else trade.entry_delta
+        trade.exit_gamma = exit_gamma if exit_gamma is not None else trade.entry_gamma
+        trade.exit_theta = exit_theta if exit_theta is not None else trade.entry_theta
+        trade.exit_iv = exit_iv if exit_iv is not None else trade.entry_iv
+        if exit_reason not in trade.exit_reason_tags:
+            trade.exit_reason_tags.append(exit_reason)
         
         if trade.pnl > 0:
             trade.status = "CLOSED_PROFIT"
@@ -326,7 +363,8 @@ class TradeManager:
         else:
             trade.status = "CLOSED"
         
-        self.active_trades.remove(trade)
+        if trade in self.active_trades:
+            self.active_trades.remove(trade)
         self.closed_trades.append(trade)
         
         duration = (trade.exit_time - trade.entry_time).total_seconds()
@@ -337,6 +375,29 @@ class TradeManager:
         )
         
         return trade
+
+    def execute_exit_order(self, trade: Trade, option_symbol: str, exit_price: float) -> Optional[dict]:
+        """Place a market SELL to flatten the position (paper/live aware)."""
+        try:
+            response = self._order_manager.place_order(
+                exchange=config.UNDERLYING_EXCHANGE,
+                symbol=option_symbol,
+                action=OrderAction.SELL,
+                order_type=OrderType.MARKET,
+                price=exit_price,
+                quantity=trade.quantity,
+                product=ProductType.MIS
+            )
+            if response:
+                logger.info(f"Exit order placed for {option_symbol} | Reason={trade.exit_reason or 'exit_trigger'}")
+            return response
+        except Exception as exc:
+            logger.error(f"Exit order failed: {exc}")
+            return None
+
+    def get_recent_trades(self, limit: int = 20) -> List[Trade]:
+        """Return the most recent closed trades for adaptive/analytics."""
+        return self.closed_trades[-limit:]
     
     def get_active_trades(self) -> List[Trade]:
         """Get active trades"""

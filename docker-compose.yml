@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # Angel-X Trading Application
+  angel-x:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: angel-x-trading
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - ENVIRONMENT=production
+      - TRADING_ENABLED=false  # Set to true for live trading
+      - LOG_LEVEL=INFO
+      - TZ=Asia/Kolkata
+    volumes:
+      # Mount config (create config.py from config.example.py before running)
+      - ./config/config.py:/app/config/config.py:ro
+      # Mount logs directory
+      - ./logs:/app/logs
+      # Mount data directory for persistence
+      - ./data:/app/data
+    networks:
+      - angel-x-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL Database (optional - for ML data storage)
+  postgres:
+    image: postgres:16-alpine
+    container_name: angel-x-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=angelx_ml
+      - POSTGRES_USER=angelx
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-angelx_secure_password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - angel-x-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U angelx"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus (monitoring - optional for Phase 6)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: angel-x-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    networks:
+      - angel-x-network
+    profiles:
+      - monitoring
+
+  # Grafana (visualization - optional for Phase 6)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: angel-x-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+    networks:
+      - angel-x-network
+    profiles:
+      - monitoring
+    depends_on:
+      - prometheus
+
+networks:
+  angel-x-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  prometheus-data:
+  grafana-data:

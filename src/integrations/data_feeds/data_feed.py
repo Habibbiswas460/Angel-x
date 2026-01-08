@@ -13,7 +13,7 @@ from config import config
 from src.utils.logger import StrategyLogger
 
 try:
-    from src.utils.angelone_client import AngelOneClient
+    from src.integrations.angelone.angelone_client import AngelOneClient
     _angelone_import_error = None
 except Exception as exc:
     AngelOneClient = None
@@ -116,22 +116,22 @@ class DataFeed:
                     api_key=getattr(config, 'BROKER_API_KEY', None),
                     ws_url=getattr(config, 'BROKER_WS_URL', None),
                     client_id=getattr(config, 'BROKER_CLIENT_ID', None),
-                    config=config
+                    config_obj=config
                 )
 
                 # Try to connect if adapter implements a connect method
                 if hasattr(self.client, 'connect_ws'):
                     try:
-                        self.client.connect_ws()
-                        self.connected = True
+                        result = self.client.connect_ws()
+                        self.connected = bool(result) if result is not None else True
                         logger.info("AngelOne WebSocket connected (adapter)")
                     except NotImplementedError:
                         logger.info("AngelOne adapter connect_ws not implemented — running in offline/demo adapter mode")
                         self.connected = False
                 elif hasattr(self.client, 'connect'):
                     try:
-                        self.client.connect()
-                        self.connected = True
+                        result = self.client.connect()
+                        self.connected = bool(result) if result is not None else True
                         logger.info("AngelOne client connected (adapter)")
                     except NotImplementedError:
                         logger.info("AngelOne adapter connect not implemented — running in offline/demo adapter mode")

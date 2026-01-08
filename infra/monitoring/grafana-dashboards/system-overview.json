@@ -1,0 +1,82 @@
+{
+  "dashboard": {
+    "title": "Angel-X Trading System - Overview",
+    "uid": "angel-x-overview",
+    "version": 1,
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Application Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "up{job=\"angel-x\"}",
+            "legendFormat": "{{ instance }}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "API Response Time (avg)",
+        "type": "gauge",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(http_request_duration_seconds_sum{job=\"angel-x\"}[5m]) / rate(http_request_duration_seconds_count{job=\"angel-x\"}[5m])",
+            "legendFormat": "Response Time"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Requests per Second",
+        "type": "graph",
+        "gridPos": {"h": 4, "w": 12, "x": 0, "y": 4},
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{job=\"angel-x\"}[1m])",
+            "legendFormat": "{{ method }} {{ path }}"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Memory Usage (MB)",
+        "type": "graph",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes{job=\"angel-x\"} / 1024 / 1024",
+            "legendFormat": "Memory"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "CPU Usage (%)",
+        "type": "graph",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(process_cpu_seconds_total{job=\"angel-x\"}[5m]) * 100",
+            "legendFormat": "CPU"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {"h": 4, "w": 12, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{job=\"angel-x\",status=~\"5..\"}[5m]) / rate(http_requests_total{job=\"angel-x\"}[5m])",
+            "legendFormat": "5xx Error Rate"
+          }
+        ]
+      }
+    ]
+  }
+}

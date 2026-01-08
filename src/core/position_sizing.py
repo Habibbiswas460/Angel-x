@@ -2,6 +2,7 @@
 ANGEL-X Position Sizing Engine
 Risk-first positioning: Capital × Risk% → Auto lot sizing
 Hard SL: 6-8% premium, SL > 10% required → Trade skipped
++ Kelly Criterion + Greeks-based probability weighting
 """
 
 import logging
@@ -9,6 +10,7 @@ from dataclasses import dataclass
 from typing import Optional
 from config import config
 from src.utils.logger import StrategyLogger
+import math
 
 logger = StrategyLogger.get_logger(__name__)
 
@@ -27,13 +29,15 @@ class PositionSize:
     risk_reward_ratio: float
     sizing_valid: bool
     rejection_reason: Optional[str] = None
+    kelly_fraction: Optional[float] = None  # Kelly Criterion output
+    win_probability: Optional[float] = None  # Estimated win prob
 
 
 class PositionSizing:
     """
     ANGEL-X Position Sizing Engine
     
-    Rule-based, risk-first position sizing
+    Rule-based, risk-first position sizing + dynamic institutional models
     Input: Entry price, Risk%, SL% → Output: Qty
     
     Non-negotiable rules:
@@ -41,13 +45,134 @@ class PositionSizing:
     - SL: 6-8% typical, >10% → SKIP
     - No averaging
     - No SL widening
+    
+    Dynamic features:
+    - Kelly Criterion for optimal sizing
+    - Greeks-based probability estimation
+    - IV edge detection
+    - High-probability auto-scaling
     """
     
     def __init__(self):
         """Initialize position sizing"""
         self.capital = config.CAPITAL
         self.min_lot_size = config.MINIMUM_LOT_SIZE
+        
+        # Dynamic sizing config
+        self.use_kelly = getattr(config, 'USE_KELLY_CRITERION', False)
+        self.kelly_fraction = getattr(config, 'KELLY_FRACTION', 0.25)  # Quarter Kelly (safer)
+        self.use_probability_weighting = getattr(config, 'USE_PROBABILITY_WEIGHTING', True)
+        
         logger.info(f"PositionSizing initialized - Capital: ₹{self.capital}")
+        logger.info(f"  Kelly Criterion: {self.use_kelly} (fraction={self.kelly_fraction})")
+        logger.info(f"  Probability weighting: {self.use_probability_weighting}")
+    
+    def estimate_win_probability(
+        self,
+        delta: float,
+        gamma: float,
+        iv: float,
+        bias_confidence: float,
+        oi_change: int = 0
+    ) -> float:
+        """
+        Estimate win probability from Greeks + market conditions
+        
+        Institutional edge factors:
+        - Higher delta = more directional conviction
+        - Higher gamma = faster profit potential
+        - IV edge: Low IV with rising action = good entry
+        - OI confirmation: Rising OI + price = strong move
+        - Bias confidence: High confidence = higher prob
+        
+        Returns:
+            Win probability (0.0 - 1.0)
+        """
+        base_prob = 0.50  # Start at 50% (coin flip)
+        
+        # Delta factor (+/- 15%)
+        # Strong delta (>0.40) = high conviction
+        if delta > 0.40:
+            delta_boost = 0.15
+        elif delta > 0.30:
+            delta_boost = 0.10
+        elif delta > 0.20:
+            delta_boost = 0.05
+        else:
+            delta_boost = 0.0
+        
+        # Gamma factor (+/- 10%)
+        # High gamma = explosive potential
+        if gamma > 0.01:
+            gamma_boost = 0.10
+        elif gamma > 0.005:
+            gamma_boost = 0.05
+        else:
+            gamma_boost = 0.0
+        
+        # IV edge factor (+/- 10%)
+        # IV 15-25% = sweet spot (not too high/low)
+        if 15 <= iv <= 25:
+            iv_boost = 0.10
+        elif 25 < iv <= 35:
+            iv_boost = 0.05
+        elif iv > 45:
+            iv_boost = -0.05  # Too high = risky
+        else:
+            iv_boost = 0.0
+        
+        # Bias confidence factor (+/- 10%)
+        conf_boost = (bias_confidence - 50) / 500  # -0.10 to +0.10
+        
+        # OI confirmation (+/- 5%)
+        oi_boost = 0.05 if oi_change > 0 else 0.0
+        
+        # Total probability
+        prob = base_prob + delta_boost + gamma_boost + iv_boost + conf_boost + oi_boost
+        
+        # Clamp to 30-80% (never extreme certainty)
+        prob = max(0.30, min(0.80, prob))
+        
+        logger.debug(f"Win probability: {prob:.2%} (Δ={delta:.3f}, Γ={gamma:.4f}, "
+                    f"IV={iv:.1f}%, conf={bias_confidence:.0f})")
+        
+        return prob
+    
+    def calculate_kelly_size(
+        self,
+        win_prob: float,
+        win_amount: float,
+        loss_amount: float
+    ) -> float:
+        """
+        Calculate Kelly Criterion optimal bet size
+        
+        Kelly% = (p*b - q) / b
+        where:
+        - p = win probability
+        - q = loss probability (1 - p)
+        - b = win/loss ratio
+        
+        Returns:
+            Kelly fraction (0.0 - 1.0)
+        """
+        if win_amount <= 0 or loss_amount <= 0:
+            return 0.0
+        
+        q = 1 - win_prob
+        b = win_amount / loss_amount  # Win/loss ratio
+        
+        kelly = (win_prob * b - q) / b
+        
+        # Apply fractional Kelly (safer)
+        kelly_adjusted = kelly * self.kelly_fraction
+        
+        # Clamp to 0-20% (never bet more than 20% on one trade)
+        kelly_clamped = max(0.0, min(0.20, kelly_adjusted))
+        
+        logger.debug(f"Kelly: {kelly:.2%} → Adjusted: {kelly_adjusted:.2%} → Final: {kelly_clamped:.2%}")
+        
+        return kelly_clamped
     
     def calculate_position_size(
         self,
@@ -56,10 +181,16 @@ class PositionSizing:
         target_price: float,
         risk_percent: Optional[float] = None,
         selected_sl_percent: Optional[float] = None,
-        expiry_rules: Optional[dict] = None
+        expiry_rules: Optional[dict] = None,
+        # Dynamic sizing inputs
+        delta: Optional[float] = None,
+        gamma: Optional[float] = None,
+        iv: Optional[float] = None,
+        bias_confidence: Optional[float] = None,
+        oi_change: Optional[int] = None
     ) -> PositionSize:
         """
-        Calculate optimal position size based on risk parameters
+        Calculate optimal position size based on risk parameters + dynamic factors
         
         Args:
             entry_price: Entry premium
@@ -68,6 +199,11 @@ class PositionSizing:
             risk_percent: Risk % (1-5%, default 2%)
             selected_sl_percent: SL as % of premium (optional override)
             expiry_rules: Expiry-adjusted rules dict (optional)
+            delta: Option delta for probability estimation
+            gamma: Option gamma
+            iv: Implied volatility
+            bias_confidence: Bias confidence (0-100)
+            oi_change: OI change
         
         Returns:
             PositionSize object with qty, risk, SL details
@@ -80,6 +216,32 @@ class PositionSizing:
         # Default risk percentage (config already in integer percentage form)
         if risk_percent is None:
             risk_percent = config.RISK_PER_TRADE_OPTIMAL
+        
+        # Dynamic sizing: Estimate win probability from Greeks
+        win_prob = None
+        kelly_pct = None
+        
+        if self.use_probability_weighting and all(
+            x is not None for x in [delta, gamma, iv, bias_confidence]
+        ):
+            win_prob = self.estimate_win_probability(
+                delta=delta,
+                gamma=gamma,
+                iv=iv,
+                bias_confidence=bias_confidence,
+                oi_change=oi_change or 0
+            )
+            
+            # Calculate Kelly size if enabled
+            if self.use_kelly:
+                win_amount = abs(target_price - entry_price)
+                loss_amount = abs(entry_price - hard_sl_price)
+                kelly_pct = self.calculate_kelly_size(win_prob, win_amount, loss_amount)
+                
+                # Override risk_percent with Kelly if higher conviction
+                if kelly_pct > 0 and win_prob > 0.60:
+                    risk_percent = kelly_pct * 100
+                    logger.info(f"Kelly override: Using {risk_percent:.2f}% risk (prob={win_prob:.1%})")
         
         # Validate risk bounds (config values already in percentage form)
         if risk_percent < config.RISK_PER_TRADE_MIN:

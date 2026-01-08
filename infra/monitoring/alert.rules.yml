@@ -1,0 +1,223 @@
+# Alert Rules for Angel-X Trading System
+groups:
+  - name: angel_x_alerts
+    interval: 30s
+    rules:
+      # Application Availability
+      - alert: Angel_X_Down
+        expr: up{job="angel-x"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: application
+        annotations:
+          summary: "Angel-X trading system is DOWN"
+          description: "Angel-X application has been unreachable for 2 minutes"
+          runbook: "Check application logs and health endpoint"
+
+      # API Response Time
+      - alert: HighAPILatency
+        expr: rate(http_request_duration_seconds_sum{job="angel-x",handler="api"}[5m]) / rate(http_request_duration_seconds_count{job="angel-x",handler="api"}[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API latency detected"
+          description: "Average API response time > 1 second for 5 minutes"
+          value: "{{ $value | humanizeDuration }}"
+
+      # HTTP Errors
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{job="angel-x",status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High rate of HTTP 5xx errors"
+          description: "Error rate > 5% for 5 minutes"
+          value: "{{ $value | humanizePercentage }}"
+
+      # Memory Usage
+      - alert: HighMemoryUsage
+        expr: (process_resident_memory_bytes{job="angel-x"} / 1024 / 1024 / 1024) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage > 2GB for 5 minutes"
+          value: "{{ $value | humanize }}GB"
+
+      # CPU Usage
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="angel-x"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage > 80% for 5 minutes"
+          value: "{{ $value | humanizePercentage }}"
+
+      # Database Connection Pool
+      - alert: DatabaseConnectionPoolExhausted
+        expr: db_connection_pool_available{job="angel-x"} < 2
+        for: 2m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Less than 2 available database connections"
+          value: "{{ $value }}"
+
+      # Trading System Alerts
+      - alert: TradingEngineStalled
+        expr: rate(trades_executed_total{job="angel-x"}[5m]) == 0 AND on(instance) up{job="angel-x"} == 1
+        for: 10m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Trading engine appears to be stalled"
+          description: "No trades executed in 10 minutes despite app being up"
+          impact: "Trading may be disabled or paused"
+
+      # Signal Generation Rate
+      - alert: LowSignalGeneration
+        expr: rate(signals_generated_total{job="angel-x"}[15m]) < 0.1
+        for: 15m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Low signal generation rate"
+          description: "Signal generation rate < 0.1 signals/minute for 15 minutes"
+          value: "{{ $value | humanize }}"
+
+      # Risk Manager Status
+      - alert: RiskLimitBreach
+        expr: risk_exposure_ratio{job="angel-x"} > 0.9
+        for: 1m
+        labels:
+          severity: critical
+          component: risk
+        annotations:
+          summary: "Risk exposure limit breach"
+          description: "Risk exposure ratio > 90% of limit"
+          value: "{{ $value | humanizePercentage }}"
+
+      # Broker Connection
+      - alert: BrokerConnectionLost
+        expr: broker_connection_status{job="angel-x"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: broker
+        annotations:
+          summary: "Broker connection lost"
+          description: "Cannot connect to AngelOne broker for 2 minutes"
+          runbook: "Check broker credentials and network connectivity"
+
+      # Market Data Feed
+      - alert: MarketDataStale
+        expr: (time() - market_data_last_update_timestamp{job="angel-x"}) > 60
+        for: 2m
+        labels:
+          severity: warning
+          component: data
+        annotations:
+          summary: "Market data feed appears stale"
+          description: "No market data updates for 60+ seconds"
+          value: "{{ $value | humanizeDuration }}"
+
+      # Option Chain Update Lag
+      - alert: OptionChainUpdateLag
+        expr: option_chain_update_lag_seconds{job="angel-x"} > 30
+        for: 5m
+        labels:
+          severity: warning
+          component: options
+        annotations:
+          summary: "Option chain data update lag high"
+          description: "Option chain update lag > 30 seconds"
+          value: "{{ $value | humanizeDuration }}"
+
+      # Greeks Calculation Performance
+      - alert: GreeksCalculationSlow
+        expr: rate(greeks_calculation_duration_seconds_sum{job="angel-x"}[5m]) / rate(greeks_calculation_duration_seconds_count{job="angel-x"}[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: greeks
+        annotations:
+          summary: "Greeks calculation is slow"
+          description: "Average Greeks calculation time > 500ms"
+          value: "{{ $value | humanizeDuration }}"
+
+      # Database Query Performance
+      - alert: SlowDatabaseQueries
+        expr: rate(db_query_duration_seconds_sum{job="angel-x"}[5m]) / rate(db_query_duration_seconds_count{job="angel-x"}[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Average query time > 1 second"
+          value: "{{ $value | humanizeDuration }}"
+
+      # Prometheus Health
+      - alert: PrometheusHighMemory
+        expr: process_resident_memory_bytes{job="prometheus"} / 1024 / 1024 / 1024 > 4
+        for: 5m
+        labels:
+          severity: warning
+          component: monitoring
+        annotations:
+          summary: "Prometheus memory usage is high"
+          description: "Prometheus using > 4GB memory"
+          value: "{{ $value | humanize }}GB"
+
+      # Disk Space
+      - alert: DiskSpaceLow
+        expr: node_filesystem_avail_bytes{job="node",fstype!~"tmpfs"} / node_filesystem_size_bytes{job="node",fstype!~"tmpfs"} < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Low disk space"
+          description: "Available disk space < 10% on {{ $labels.device }}"
+          value: "{{ $value | humanizePercentage }}"
+
+  - name: learning_alerts
+    interval: 60s
+    rules:
+      # Learning Model Performance
+      - alert: LearningModelAccuracyLow
+        expr: learning_model_accuracy{job="angel-x"} < 0.5
+        for: 30m
+        labels:
+          severity: warning
+          component: learning
+        annotations:
+          summary: "Learning model accuracy below threshold"
+          description: "Model accuracy < 50% for 30 minutes"
+          value: "{{ $value | humanizePercentage }}"
+
+      # Feedback Processing Lag
+      - alert: FeedbackProcessingLag
+        expr: learning_feedback_queue_size{job="angel-x"} > 1000
+        for: 10m
+        labels:
+          severity: warning
+          component: learning
+        annotations:
+          summary: "Learning feedback queue is accumulating"
+          description: "Feedback queue > 1000 items for 10 minutes"
+          value: "{{ $value }}"
