@@ -25,7 +25,7 @@ logger = StrategyLogger.get_logger(__name__)
 
 # SmartAPI integration
 try:
-    from app.integrations.angelone.smartapi_integration import SmartAPIClient
+    from src.integrations.angelone.smartapi_integration import SmartAPIClient
     SMARTAPI_AVAILABLE = True
 except ImportError:
     SmartAPIClient = None

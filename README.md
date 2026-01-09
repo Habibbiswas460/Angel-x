@@ -6,7 +6,7 @@
 [![Version](https://img.shields.io/badge/Version-1.0.0-blue?style=flat)](https://github.com)
 [![Tests](https://img.shields.io/badge/Tests-16%2F16%20%E2%9C%93-brightgreen?style=flat)](https://github.com)
 [![Coverage](https://img.shields.io/badge/Coverage-%3E90%25-brightgreen?style=flat)](https://github.com)
-[![License](https://img.shields.io/badge/License-Proprietary-blue?style=flat)](https://github.com)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=flat)](LICENSE)
 
 **Angel-X** is a professional-grade options trading system built on AngelOne SmartAPI. It combines Greeks-based market analysis, adaptive learning algorithms, and enterprise-grade infrastructure to deliver consistent, automated trading strategies.
 

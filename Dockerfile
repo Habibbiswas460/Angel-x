@@ -78,9 +78,9 @@ USER angelx
 # Expose port for API
 EXPOSE 5000
 
-# Health check
+# Health check - use /monitor/health endpoint (standardized with app)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:5000/health || exit 1
+    CMD curl -f http://localhost:5000/monitor/health || exit 1
 
 # Default command - run the main application
 CMD ["python", "main.py"]

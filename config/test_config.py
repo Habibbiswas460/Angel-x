@@ -468,11 +468,14 @@ class TestProgression:
 # ============================================================================
 
 # Current active test (change this to switch test modes)
-ACTIVE_TEST = 'TEST-0'  # Start with safety setup
+# Set to None for LIVE MODE
+ACTIVE_TEST = None  # LIVE TRADING MODE (was TEST-0)
 
 # Get active test config
 def get_active_config():
     """Get configuration for active test"""
+    if ACTIVE_TEST is None:
+        return None  # Live mode
     configs = {
         'TEST-0': Test0Config,
         'TEST-1': Test1Config,

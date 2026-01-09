@@ -15,29 +15,29 @@ from config import config
 from config.test_config import get_active_config, TestProgression
 
 # Utils
-from app.utils.logger import StrategyLogger
-from app.integrations.data_feeds.data_feed import DataFeed
-from app.utils.trade_journal import TradeJournal
-from app.utils.network_resilience import get_network_monitor
-from app.engines.greeks.greeks_data_manager import GreeksDataManager
+from src.utils.logger import StrategyLogger
+from src.integrations.data_feeds.data_feed import DataFeed
+from src.utils.trade_journal import TradeJournal
+from src.utils.network_resilience import get_network_monitor
+from src.engines.greeks.greeks_data_manager import GreeksDataManager
 
 # Engines
-from app.engines.market_bias.engine import BiasEngine, BiasState
-from app.engines.strike_selection.engine import StrikeSelectionEngine
-from app.engines.entry.engine import EntryEngine, EntrySignal
-from app.engines.trap_detection.engine import TrapDetectionEngine
-from app.engines.portfolio.multi_strike_engine import MultiStrikePortfolioEngine
+from src.engines.market_bias.engine import BiasEngine, BiasState
+from src.engines.strike_selection.engine import StrikeSelectionEngine
+from src.engines.entry.engine import EntryEngine, EntrySignal
+from src.engines.trap_detection.engine import TrapDetectionEngine
+from src.engines.portfolio.multi_strike_engine import MultiStrikePortfolioEngine
 
 # Adaptive System (Phase 10)
-from app.adaptive.adaptive_controller import AdaptiveController
+from src.adaptive.adaptive_controller import AdaptiveController
 
 # Core
-from app.core.position_sizing import PositionSizing
-from app.core.order_manager import OrderManager, OrderAction, OrderType, ProductType
-from app.core.trade_manager import TradeManager
-from app.core.expiry_manager import ExpiryManager
-from app.utils.options_helper import OptionsHelper
-from app.integration_hub import get_integration_hub
+from src.core.position_sizing import PositionSizing
+from src.core.order_manager import OrderManager, OrderAction, OrderType, ProductType
+from src.core.trade_manager import TradeManager
+from src.core.expiry_manager import ExpiryManager
+from src.utils.options_helper import OptionsHelper
+from src.integration_hub import get_integration_hub
 
 logger = StrategyLogger.get_logger(__name__)
 
@@ -486,7 +486,7 @@ class AngelXStrategy:
                                     risk_amount = qty * (entry_context.entry_price - position.hard_sl_price)
                                     
                                     # Risk manager check
-                                    from app.core.risk_manager import RiskManager
+                                    from src.core.risk_manager import RiskManager
                                     risk_mgr = RiskManager()
                                     can_trade, risk_reason = risk_mgr.can_take_trade({
                                         'quantity': qty,
@@ -551,6 +551,7 @@ class AngelXStrategy:
                                             logger.info(f"Started tracking Greeks for {option_symbol}")
                                     
                                     order = None
+                                    order_symbol = None  # Initialize for error logging
                                     if config.USE_MULTILEG_STRATEGY:
                                         # Place multi-leg order (straddle/strangle)
                                         order = self._place_multileg_order(entry_context, position, expiry_rules)
@@ -562,6 +563,11 @@ class AngelXStrategy:
                                             offset = self.options_helper.compute_offset(
                                                 config.PRIMARY_UNDERLYING,
                                                 expiry_date,
+                                                entry_context.strike,
+                                                entry_context.option_type
+                                            )
+                                            # Build order symbol for logging
+                                            order_symbol = self.expiry_manager.build_order_symbol(
                                                 entry_context.strike,
                                                 entry_context.option_type
                                             )
@@ -579,37 +585,6 @@ class AngelXStrategy:
                                             )
                                         else:
                                             logger.error("No current expiry; cannot place options order")
-                                        current_exp = self.expiry_manager.get_current_expiry()
-                                        order_symbol = None
-                                        if current_exp:
-                                            expiry_date = current_exp.expiry_date
-                                            offset = self.options_helper.compute_offset(
-                                                config.PRIMARY_UNDERLYING,
-                                                expiry_date,
-                                                entry_context.strike,
-                                                entry_context.option_type
-                                            )
-                                            order_symbol = self.expiry_manager.get_option_symbol_by_offset(
-                                                underlying=config.PRIMARY_UNDERLYING,
-                                                expiry_date=expiry_date,
-                                                offset=offset,
-                                                option_type=entry_context.option_type
-                                            )
-                                        if not order_symbol:
-                                            # Fallback to manual symbol build
-                                            order_symbol = self.expiry_manager.build_order_symbol(
-                                                entry_context.strike,
-                                                entry_context.option_type
-                                            )
-                                        order = self.order_manager.place_order(
-                                            exchange=config.UNDERLYING_EXCHANGE,
-                                            symbol=order_symbol,
-                                            action=OrderAction.BUY,
-                                            order_type=OrderType.LIMIT,
-                                            price=entry_context.entry_price,
-                                            quantity=int(position.quantity * expiry_rules.get('max_position_size_factor', 1.0)),
-                                            product=ProductType.MIS
-                                        )
                                     
                                     # 🔴 VALIDATE ORDER PLACEMENT
                                     if not order:

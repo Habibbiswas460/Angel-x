@@ -193,6 +193,47 @@ class SmartAPIClient:
             logger.error(f"get_ltp_data({trading_symbol}): {e}")
             return None
     
+    def get_quote(self, exchange: str, trading_symbol: str, token: str = None) -> Optional[Dict]:
+        """Get full quote data including Greeks for options.
+        
+        Args:
+            exchange: 'NSE', 'NFO', 'BSE', etc.
+            trading_symbol: Symbol name
+            token: Instrument token (optional, will search if not provided)
+        
+        Returns: Quote data dict with Greeks or None
+        """
+        try:
+            if not self.smart_connect:
+                logger.error("Not authenticated")
+                return None
+            
+            # If token not provided, search for it
+            if not token:
+                scrip = self.search_scrip(exchange, trading_symbol)
+                if scrip and len(scrip) > 0:
+                    token = scrip[0].get('symboltoken')
+                else:
+                    logger.warning(f"Could not find token for {trading_symbol}")
+                    return None
+            
+            # Get quote data
+            quote_data = self.smart_connect.getQuote(
+                exchange=exchange,
+                tradingsymbol=trading_symbol,
+                symboltoken=token
+            )
+            
+            if quote_data and quote_data.get('status'):
+                return quote_data
+            else:
+                logger.warning(f"Quote fetch failed: {quote_data}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"get_quote({trading_symbol}): {e}")
+            return None
+    
     def search_scrip(self, exchange: str, searchtext: str) -> Optional[List[Dict]]:
         """Search for instruments by text.
         

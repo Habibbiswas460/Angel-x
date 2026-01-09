@@ -17,6 +17,7 @@ except Exception as exc:
     _angelone_import_error = exc
 from config import config
 from src.utils.logger import StrategyLogger
+from src.core.risk_manager import RiskManager
 
 logger = StrategyLogger.get_logger(__name__)
 
@@ -49,6 +50,7 @@ class OrderManager:
     def __init__(self):
         """Initialize order manager"""
         data_src = getattr(config, 'DATA_SOURCE', 'openalgo')
+        self.risk_manager = RiskManager()
         if data_src == 'angelone':
             if AngelOneClient is None:
                 logger.error("AngelOne adapter not available", exc_info=_angelone_import_error)
@@ -72,6 +74,94 @@ class OrderManager:
         
         self.active_orders = {}
         self.order_counter = 0
+
+    def _fetch_quote(self, exchange: str, symbol: str):
+        """Fetch quote using available AngelOne SmartAPI client if possible."""
+        try:
+            # Prefer underlying angelone client's smart_client if present
+            if self.client and hasattr(self.client, 'smart_client') and getattr(self.client, 'smart_client'):
+                smart_client = getattr(self.client, 'smart_client')
+                if hasattr(smart_client, 'get_quote'):
+                    return smart_client.get_quote(exchange, symbol)
+            # Best-effort: try direct SmartAPIClient (avoid duplicate login if not configured)
+            try:
+                from src.integrations.angelone.smartapi_integration import SmartAPIClient  # lazy import
+                import os
+                api_key = os.getenv('ANGELONE_API_KEY', '')
+                client_code = os.getenv('ANGELONE_CLIENT_CODE', '')
+                password = os.getenv('ANGELONE_PASSWORD', '')
+                totp_secret = os.getenv('ANGELONE_TOTP_SECRET', '')
+                if api_key and client_code and password and totp_secret:
+                    tmp_client = SmartAPIClient(api_key=api_key, client_code=client_code, password=password, totp_secret=totp_secret)
+                    if tmp_client and tmp_client.login():
+                        return tmp_client.get_quote(exchange, symbol)
+            except Exception:
+                pass
+        except Exception:
+            pass
+        return None
+
+    def _pre_trade_checks(self, exchange: str, symbol: str, quantity: int) -> tuple:
+        """Run hard gates and risk checks before any order placement.
+
+        Returns tuple (allowed: bool, reason: str)
+        """
+        try:
+            # Market hours and halt checks
+            if not self.risk_manager.is_trading_allowed():
+                return False, "Trading not allowed (halted or outside hours)"
+
+            # Enforce live trading gate: if not paper and not explicitly enabled, block
+            if not config.PAPER_TRADING and not getattr(config, 'TRADING_ENABLED', False):
+                return False, "TRADING_ENABLED is False; live orders blocked"
+
+            # Basic position/risk checks
+            trade_info = {
+                'symbol': symbol,
+                'quantity': int(quantity or 0),
+            }
+            allowed, reason = self.risk_manager.can_take_trade(trade_info)
+            if not allowed:
+                return False, f"Risk veto: {reason}"
+
+            # Market data based safety checks (spread/liquidity)
+            quote = self._fetch_quote(exchange, symbol)
+            if not config.PAPER_TRADING and quote is None:
+                # Fail-closed in live mode when no quote
+                return False, "No quote available for safety checks"
+
+            if quote and isinstance(quote, dict) and 'data' in quote:
+                qd = quote['data']
+                ltp = float(qd.get('ltp', 0) or 0)
+                bid = float(qd.get('bidprice', 0) or 0)
+                ask = float(qd.get('askprice', 0) or 0)
+                vol = int(qd.get('volume', 0) or 0)
+                oi = int(qd.get('oi', 0) or 0)
+
+                # Require both bid and ask if configured
+                if getattr(config, 'REQUIRE_BID_ASK_BOTH', True):
+                    if bid <= 0 or ask <= 0:
+                        return False, "Bid/Ask not available"
+
+                # Spread percent check
+                if ltp > 0 and bid > 0 and ask > 0:
+                    spread_pct = ((ask - bid) / ltp) * 100.0 if ask >= bid else 0.0
+                    if spread_pct > getattr(config, 'MAX_SPREAD_PERCENT', 1.0):
+                        return False, f"Spread too wide: {spread_pct:.2f}%"
+
+                # Liquidity checks
+                if vol < getattr(config, 'MIN_VOLUME_THRESHOLD', 50):
+                    return False, f"Low volume: {vol} < {config.MIN_VOLUME_THRESHOLD}"
+                if oi < getattr(config, 'MIN_OI_THRESHOLD', 100):
+                    return False, f"Low OI: {oi} < {config.MIN_OI_THRESHOLD}"
+
+            # Note: Data freshness and LTP jump checks require timestamp history; skipped if unavailable
+
+            return True, "Allowed"
+        except Exception as e:
+            logger.error(f"Pre-trade checks error: {e}")
+            # Fail-closed on any unexpected error
+            return False, "Pre-trade checks exception"
 
     def _simulate_response(self, payload: dict) -> dict:
         """Simulate an order response in PAPER_TRADING mode"""
@@ -153,9 +243,22 @@ class OrderManager:
         Returns:
             Order response dict or None if failed
         """
-        
+        # Intent snapshot for audit
+        intent = {
+            'stage': 'INTENT',
+            'exchange': exchange,
+            'symbol': symbol,
+            'action': action.value if isinstance(action, OrderAction) else str(action),
+            'order_type': order_type.value if isinstance(order_type, OrderType) else str(order_type),
+            'price': price,
+            'quantity': quantity,
+            'paper': bool(getattr(config, 'PAPER_TRADING', True)),
+        }
+        logger.log_order({'type': 'ORDER_INTENT', **intent})
+
         if not self.client and not config.PAPER_TRADING:
             logger.error("OrderManager not initialized with API client")
+            logger.log_order({'type': 'ORDER_BLOCKED', 'reason': 'No API client for live mode', **intent})
             return None
         
         try:
@@ -166,6 +269,13 @@ class OrderManager:
             
             if order_type == OrderType.LIMIT and price <= 0:
                 logger.warning(f"Invalid price for LIMIT order: {price}")
+                return None
+
+            # Hard gate + risk checks (apply for both paper and live to keep behavior consistent)
+            allowed, reason = self._pre_trade_checks(exchange, symbol, quantity)
+            if not allowed:
+                logger.warning(f"Order blocked by pre-trade checks: {reason}")
+                logger.log_order({'type': 'ORDER_BLOCKED', 'reason': reason, **intent})
                 return None
             
             # PAPER TRADING MODE - Simulate order locally
@@ -187,6 +297,7 @@ class OrderManager:
                     f"📄 PAPER ORDER: {action.value} {quantity} {symbol} @ ₹{price:.2f} | "
                     f"Order ID: {order_id}"
                 )
+                logger.log_order({'type': 'ORDER_SIMULATED', **simulated_order})
                 return simulated_order
                 logger.warning(f"Invalid price for LIMIT order: {price}")
                 return None
@@ -221,14 +332,16 @@ class OrderManager:
                     f"Order placed: {action.value} {quantity} {symbol} @ ₹{price:.2f} | "
                     f"Order ID: {order_id}"
                 )
-                
+                logger.log_order({'type': 'ORDER_PLACED', 'orderid': order_id, **intent})
                 return response
             else:
                 logger.error(f"Order placement failed: {response}")
+                logger.log_order({'type': 'ORDER_REJECTED', 'response': response, **intent})
                 return None
         
         except Exception as e:
             logger.error(f"Error placing order: {e}")
+            logger.log_order({'type': 'ORDER_ERROR', 'error': str(e), **intent})
             return None
 
     def resolve_option_symbol(self, underlying: str, expiry_date: str, offset: str, option_type: str) -> Optional[dict]:

@@ -215,25 +215,24 @@ class GreeksDataManager:
                 with self.data_lock:
                     return self.greeks_cache.get(symbol)
             
+            # Extract data - response format from AngelOne SmartAPI
             data = response.get('data', {})
-            greeks_data = data.get('greeks', {})
-            quote_data = data.get('quote', {})
             
-            # Create snapshot
+            # Create snapshot from AngelOne response
             snapshot = GreeksSnapshot(
                 symbol=symbol,
                 timestamp=datetime.now(),
-                delta=greeks_data.get('delta', 0.0),
-                gamma=greeks_data.get('gamma', 0.0),
-                theta=greeks_data.get('theta', 0.0),
-                vega=greeks_data.get('vega', 0.0),
-                iv=greeks_data.get('iv', 0.0),
-                ltp=quote_data.get('ltp', 0.0),
-                bid=quote_data.get('bid', 0.0),
-                ask=quote_data.get('ask', 0.0),
-                volume=quote_data.get('volume', 0),
-                oi=quote_data.get('oi', 0),
-                oi_change=quote_data.get('oi_change', 0.0)
+                delta=data.get('delta', 0.0),
+                gamma=data.get('gamma', 0.0),
+                theta=data.get('theta', 0.0),
+                vega=data.get('vega', 0.0),
+                iv=data.get('iv', 0.0),
+                ltp=data.get('ltp', 0.0),
+                bid=data.get('bid', 0.0),
+                ask=data.get('ask', 0.0),
+                volume=data.get('volume', 0),
+                oi=data.get('oi', 0),
+                oi_change=data.get('oi_change', 0.0)
             )
             
             # Update cache and rolling state

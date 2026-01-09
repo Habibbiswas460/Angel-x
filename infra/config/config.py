@@ -329,7 +329,10 @@ DATABASE_HOST = os.getenv("DB_HOST", "localhost")
 DATABASE_PORT = int(os.getenv("DB_PORT", "5432"))
 DATABASE_NAME = os.getenv("DB_NAME", "angelx_ml")
 DATABASE_USER = os.getenv("DB_USER", "angelx")
-DATABASE_PASSWORD = os.getenv("DB_PASSWORD", "angelx_secure_2026")
+# ⚠️ SECURITY: Require explicit password in production
+DATABASE_PASSWORD = os.getenv("DB_PASSWORD", "")
+if not DATABASE_PASSWORD and os.getenv("ENVIRONMENT") == "production":
+    raise ValueError("DB_PASSWORD environment variable must be set for production")
 DATABASE_BATCH_SIZE = 100  # Batch insert size for performance
 
 # ============================================================================
