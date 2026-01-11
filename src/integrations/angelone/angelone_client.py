@@ -513,4 +513,7 @@ class AngelOnePhase2:
             return {'status': 'error'}
 
 
-__all__ = ["AngelOnePhase2"]
+# Backward compatibility alias
+AngelOneClient = AngelOnePhase2
+
+__all__ = ["AngelOnePhase2", "AngelOneClient"]

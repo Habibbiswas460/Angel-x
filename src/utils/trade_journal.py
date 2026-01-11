@@ -361,3 +361,8 @@ class TradeJournalEngine:
                 f.write("-" * 80 + "\n")
         
         return f"Session report exported to {filepath}"
+
+
+# Backward compatibility alias
+TradeJournal = TradeJournalEngine
+

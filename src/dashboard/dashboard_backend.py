@@ -35,6 +35,11 @@ class DashboardDataProvider:
         self.daily_pnl = 0
         self.daily_trades = 0
         self.account_risk_used = 0
+        self.ml_signals = {
+            'direction': [],
+            'classification': [],
+            'timestamp': datetime.now().isoformat()
+        }
         
     def update_ltp(self, symbol: str, price: float):
         """Update LTP for a symbol"""
@@ -73,6 +78,14 @@ class DashboardDataProvider:
         """Update risk metrics"""
         with self.lock:
             self.account_risk_used = risk_used
+    
+    def set_ml_signals(self, signals: Dict):
+        """Update ML-driven signals for dashboard"""
+        with self.lock:
+            self.ml_signals = {
+                **signals,
+                'timestamp': datetime.now().isoformat()
+            }
     
     def _compute_portfolio_greeks(self):
         """Compute aggregated portfolio Greeks"""
@@ -125,7 +138,8 @@ class DashboardDataProvider:
                 'market': {
                     'ltp': self.current_ltp,
                     'greeks': self.greeks_data
-                }
+                },
+                'ml': self.ml_signals
             }
 
     def get_heatmap_snapshot(self, underlying: str) -> Dict:

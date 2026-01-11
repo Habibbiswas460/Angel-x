@@ -9,6 +9,7 @@ websocket-client>=1.6.0   # WebSocket for live market data
 # Core dependencies
 pandas>=2.2.0
 yfinance>=0.2.40
+scikit-learn>=1.3.0       # ML models (RandomForest, LogisticRegression)
 
 # Dashboard backend
 flask>=2.3.0
@@ -19,3 +20,7 @@ python-dotenv>=1.0.0
 
 # Optional: PostgreSQL for ML database
 psycopg2-binary>=2.9.9
+
+# Optional ML (installed locally, not in container by default)
+# tensorflow-cpu>=2.12.0   # For LSTM predictor (fallback used if not installed)
+# xgboost>=1.7.6           # For advanced pattern recognition

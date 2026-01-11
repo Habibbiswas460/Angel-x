@@ -13,6 +13,7 @@ from src.utils.logger import StrategyLogger
 from src.dashboard.dashboard_backend import DashboardDataProvider, dashboard_provider, start_dashboard
 from src.analytics.trade_journal_analytics import TradeJournalAnalytics
 from src.engines.smart_exit_engine import SmartExitEngine, ExitConfiguration
+from src.ml.integration import MLIntegration
 
 logger = StrategyLogger.get_logger(__name__)
 
@@ -48,6 +49,43 @@ class AngelXIntegration:
         # Initialize analytics
         self.analytics = TradeJournalAnalytics()
         logger.info("✓ Trade journal analytics initialized")
+        
+        # Initialize ML (optional, with safe fallbacks)
+        try:
+            self.ml = MLIntegration()
+            # Attempt quick training from any available ticks CSV (optional)
+            # Falls back silently if data not found
+            import pandas as pd
+            from pathlib import Path
+            data_dir = Path('ticks')
+            df = None
+            for csv in ['ticks_20260110.csv', 'ticks_20260109.csv']:
+                p = data_dir / csv
+                if p.exists():
+                    df = pd.read_csv(p)
+                    break
+            if df is not None:
+                info = self.ml.train(df)
+                if not info.get('skipped'):
+                    logger.info(f"✓ ML models trained (samples: {info.get('train_samples',0)})")
+                    # Publish sample signals to dashboard
+                    preds = self.ml.infer(df)
+                    dashboard_provider.set_ml_signals({
+                        'direction': preds.get('direction_preds', [])[:10],
+                        'classification': preds.get('class_preds', [])[:10]
+                    })
+                else:
+                    logger.info("⚠️ ML training skipped (no valid sequences)")
+                    dashboard_provider.set_ml_signals({'direction': [], 'classification': []})
+            else:
+                # No data; set default signals
+                dashboard_provider.set_ml_signals({
+                    'direction': [],
+                    'classification': []
+                })
+                logger.info("ℹ️ No tick data found; ML initialized with empty signals")
+        except Exception as e:
+            logger.warning(f"ML initialization skipped: {e}")
         
         # Dashboard server thread (if enabled)
         self.dashboard_thread = None

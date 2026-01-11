@@ -60,12 +60,13 @@ COPY --from=builder /opt/venv /opt/venv
 WORKDIR /app
 
 # Copy application code
+COPY --chown=angelx:angelx src/ /app/src/
 COPY --chown=angelx:angelx app/ /app/app/
+COPY --chown=angelx:angelx config/ /app/config/
 COPY --chown=angelx:angelx infra/ /app/infra/
 COPY --chown=angelx:angelx tools/ /app/tools/
 COPY --chown=angelx:angelx scripts/ /app/scripts/
 COPY --chown=angelx:angelx main.py /app/
-COPY --chown=angelx:angelx config/config.example.py /app/config/
 
 # Create config.py from example if not exists
 RUN if [ ! -f /app/config/config.py ]; then \
@@ -80,7 +81,7 @@ EXPOSE 5000
 
 # Health check - use /monitor/health endpoint (standardized with app)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:5000/monitor/health || exit 1
+    CMD curl -f http://localhost:5000/health || exit 1
 
 # Default command - run the main application
 CMD ["python", "main.py"]
