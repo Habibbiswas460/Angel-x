@@ -132,7 +132,7 @@ src/integrations/angelone/
 ├── smartapi_integration.py    # Core SmartAPI SDK wrapper
 ├── angelone_adapter.py         # High-level adapter with safety gates
 ├── angelone_client.py          # Legacy client (fallback)
-└── angelone_phase2.py          # Phase 2 option chain helpers
+└── angelone_client.py          # AngelOne client integration
 ```
 
 ### 🚀 Usage Examples
@@ -255,7 +255,7 @@ if risk_manager.can_take_trade(trade_info):
     result = adapter.place_order(order_payload)
 ```
 
-#### Phase 10 Adaptive Learning Integration:
+#### Adaptive Learning Integration:
 ```python
 from src.engines.adaptive_controller import AdaptiveController
 from src.integrations.angelone.angelone_adapter import AngelOneAdapter

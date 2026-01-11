@@ -1,27 +1,22 @@
-# Angel-x Trading System
+# Angel-X Trading System
 
 ## Documentation Index
 
 ### Getting Started
-- [Quick Start Guide](guides/quickstart.md)
-- [Installation Guide](guides/installation.md)
-- [Deployment Guide](guides/deployment.md)
+- [Quick Start Guide](START_HERE.md)
+- [Paper Trading Guide](PAPER_TRADING.md)
+- [⭐ What's Next? (Roadmap)](../REMAINING_WORK_ROADMAP.md) - Remaining work & optional enhancements
 
-### Architecture
-- [System Overview](architecture/overview.md)
-- [Integration Guide](architecture/integration.md)
+### Core Documentation
+- [System Architecture](architecture/)
+- [API Reference](API_REFERENCE.md)
+- [Production Deployment](PRODUCTION_DEPLOYMENT.md)
 
-### API Reference
-- [API Documentation](api/reference.md)
+### Features
+- [38-Point Feature Guide](architecture/FEATURES_38_POINT_QUICK_START.md)
+- [Auto Strike Selector](architecture/AUTO_STRIKE_SELECTOR_GUIDE.md)
+- [Master Test Plan](architecture/MASTER_TEST_PLAN.md)
 
-### Phase Documentation
-- [Phase 1: Foundation](phases/PHASE1_COMPLETE.md)
-- [Phase 2: Option Chain Engine](phases/PHASE2_COMPLETE.md)
-- [Phase 3: Greeks Engine](phases/PHASE3_GREEKS_ENGINE_COMPLETE.md)
-- [Phase 4: Smart Money Engine](phases/PHASE4_SMART_MONEY_ENGINE_COMPLETE.md)
-- [Phase 5: Market Bias Engine](phases/PHASE5_COMPLETION_REPORT.md)
-- [Phase 6: Entry & Strike Selection](phases/PHASE6_COMPLETE.md)
-- [Phase 7: Final Integration](phases/PHASE7_COMPLETE.md)
-
-### Quick References
-- [Phase 1 Quick Reference](guides/quickstart_phase1.md)
+### Integration
+- [SmartAPI Integration](architecture/SMARTAPI_INTEGRATION_COMPLETE.md)
+- [Telegram Setup](architecture/TELEGRAM_SETUP.md)

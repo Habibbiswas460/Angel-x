@@ -27,7 +27,6 @@ class Test0Config:
     """
     Bot চিন্তা করবে, সিদ্ধান্ত নেবে, কিন্তু order যাবে না
     """
-    DEMO_MODE = True              # Bot runs but NO orders
     REAL_MARKET_DATA = True       # Real LTP, Greeks from broker
     ORDER_PLACEMENT = False       # ⚠️ CRITICAL: No orders to broker
     LOG_ALL_DECISIONS = True      # Every decision logged
@@ -215,7 +214,6 @@ class Test7Config:
     Real market, real decisions, NO execution
     "Would have traded" mode
     """
-    DEMO_MODE = False             # Full decision making
     EXECUTION_ENABLED = False     # But NO actual orders
     REAL_MARKET_FULL_RUN = True   # Full day simulation
     

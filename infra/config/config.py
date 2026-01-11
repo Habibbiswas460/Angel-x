@@ -221,7 +221,6 @@ JOURNAL_FIELDS = [
     'rule_violations'
 ]
 
-ENABLE_BACKTEST_LOGGING = True       # For future ML/tuning
 ENABLE_DEBUG_LOGGING = False         # Set True for troubleshooting
 
 # ============================================================================
@@ -344,10 +343,6 @@ HEATMAP_STRIKES_AROUND_ATM = 5
 # ============================================================================
 # 18) BACKTESTING FOUNDATION
 # ============================================================================
-BACKTESTING_ENABLED = False
-BACKTEST_DATA_DIR = "./backtests/data"
-BACKTEST_DEFAULT_CAPITAL = 100000
-BACKTEST_SLIPPAGE_PERCENT = 0.05
 BROKER_API_KEY = os.getenv("BROKER_API_KEY", "")        # SmartAPI API key
 BROKER_CLIENT_ID = os.getenv("BROKER_CLIENT_ID", "")    # AngelOne client code
 BROKER_RECONNECT_DELAY = 5
@@ -377,8 +372,6 @@ SQUARE_OFF_TIME = "15:15"
 PAPER_TRADING = os.getenv('PAPER_TRADING', 'True').lower() == 'true'
 DRY_RUN = False  # Set to True for testing without orders
 ANALYZER_MODE = os.getenv('ANALYZER_MODE', 'False').lower() == 'true'
-DEMO_MODE = os.getenv('DEMO_MODE', 'False').lower() == 'true'
-DEMO_SKIP_WEBSOCKET = False  # Skip WebSocket connection in demo mode
 
 # ============================================================================
 # Notification Settings

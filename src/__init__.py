@@ -2,7 +2,7 @@
 ANGEL-X Trading System
 Professional Institutional-Grade Options Trading Platform
 
-All 10 phases complete:
+Production-ready system:
 - Greeks-aware, OI-driven, Risk-disciplined
 - Self-correcting, Emotion-proof, Market-adaptive
 """
@@ -16,7 +16,7 @@ from src.__version__ import (
     get_version,
     get_full_version,
     print_banner,
-    PHASE_STATUS,
+    SYSTEM_STATUS,
     CAPABILITIES
 )
 

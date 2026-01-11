@@ -216,7 +216,6 @@ JOURNAL_FIELDS = [
     'rule_violations'
 ]
 
-ENABLE_BACKTEST_LOGGING = True       # For future ML/tuning
 ENABLE_DEBUG_LOGGING = False         # Set True for troubleshooting
 
 # ============================================================================

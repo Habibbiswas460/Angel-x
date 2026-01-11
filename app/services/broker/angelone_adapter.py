@@ -466,9 +466,54 @@ class AngelOneAdapter:
                 logger.error(f"Cannot place order: {reason}")
                 return {'status': 'failed', 'reason': reason}
             
-            # TODO: Implement real order placement via broker REST API
-            logger.warning("Real order placement not yet implemented")
-            return {'status': 'failed', 'reason': 'Real API not implemented'}
+            # Real order placement via SmartAPI or REST
+            if self._smartapi_client:
+                try:
+                    # Use SmartAPI SDK for order placement
+                    mode = 'REGULAR'
+                    exchange_tokens = []
+                    quantities = []
+                    order_types = ['MKT']
+                    prices = []
+                    
+                    symbol = order_payload.get('symbol', '')
+                    qty = order_payload.get('qty', 1)
+                    side = order_payload.get('side', 'BUY')
+                    price = order_payload.get('price', 0)
+                    
+                    # Call SmartAPI place order
+                    response = self._smartapi_client.place_order(
+                        mode=mode,
+                        exchange_tokens=exchange_tokens,
+                        quantities=quantities,
+                        order_types=order_types,
+                        prices=prices,
+                        side=side,
+                        symbol=symbol,
+                        quantity=qty,
+                        price=price
+                    )
+                    
+                    if response and response.get('status') == 'success':
+                        order_id = response.get('data', {}).get('orderid', f"LIVE_{int(time.time())}")
+                        logger.info(f"Real order placed: {order_id}")
+                        return {
+                            'status': 'success',
+                            'orderid': order_id,
+                            'payload': order_payload,
+                            'message': 'Order placed successfully'
+                        }
+                    else:
+                        error_msg = response.get('message', 'Order placement failed')
+                        logger.error(f"Order placement failed: {error_msg}")
+                        return {'status': 'failed', 'reason': error_msg}
+                        
+                except Exception as e:
+                    logger.error(f"SmartAPI order placement error: {e}")
+                    return {'status': 'error', 'reason': str(e)}
+            else:
+                logger.warning("SmartAPI client not available - order placement not possible")
+                return {'status': 'failed', 'reason': 'SmartAPI client unavailable'}
             
         except Exception as e:
             logger.error(f"place_order error: {e}")
@@ -491,9 +536,23 @@ class AngelOneAdapter:
                 logger.info(f"PAPER order cancelled: {order_id}")
                 return {'status': 'success', 'orderid': order_id, 'message': 'Paper order cancelled'}
             
-            # TODO: Real cancel via broker API
-            logger.warning("Real cancel not yet implemented")
-            return {'status': 'failed', 'reason': 'Real API not implemented'}
+            # Real cancel via SmartAPI
+            if self._smartapi_client:
+                try:
+                    response = self._smartapi_client.cancel_order(order_id)
+                    if response and response.get('status') == 'success':
+                        logger.info(f"Order cancelled successfully: {order_id}")
+                        return {'status': 'success', 'orderid': order_id, 'message': 'Order cancelled'}
+                    else:
+                        error_msg = response.get('message', 'Cancel failed')
+                        logger.error(f"Order cancel failed: {error_msg}")
+                        return {'status': 'failed', 'reason': error_msg}
+                except Exception as e:
+                    logger.error(f"SmartAPI cancel error: {e}")
+                    return {'status': 'error', 'reason': str(e)}
+            else:
+                logger.warning("SmartAPI client not available - cancel not possible")
+                return {'status': 'failed', 'reason': 'SmartAPI client unavailable'}
             
         except Exception as e:
             logger.error(f"cancel_order({order_id}): {e}")
@@ -514,8 +573,23 @@ class AngelOneAdapter:
             if self.paper_trading:
                 return {'status': 'success', 'orderid': order_id, 'message': 'Paper order modified'}
             
-            # TODO: Real modify via broker API
-            return {'status': 'failed', 'reason': 'Real API not implemented'}
+            # Real modify via SmartAPI
+            if self._smartapi_client:
+                try:
+                    response = self._smartapi_client.modify_order(order_id, new_price)
+                    if response and response.get('status') == 'success':
+                        logger.info(f"Order modified successfully: {order_id} SL={new_price}")
+                        return {'status': 'success', 'orderid': order_id, 'message': 'Order modified'}
+                    else:
+                        error_msg = response.get('message', 'Modify failed')
+                        logger.error(f"Order modify failed: {error_msg}")
+                        return {'status': 'failed', 'reason': error_msg}
+                except Exception as e:
+                    logger.error(f"SmartAPI modify error: {e}")
+                    return {'status': 'error', 'reason': str(e)}
+            else:
+                logger.warning("SmartAPI client not available - modify not possible")
+                return {'status': 'failed', 'reason': 'SmartAPI client unavailable'}
             
         except Exception as e:
             logger.error(f"modify_order({order_id}): {e}")
@@ -532,8 +606,28 @@ class AngelOneAdapter:
             if self.paper_trading or order_id.startswith('PAPER_'):
                 return {'orderid': order_id, 'status': 'filled', 'filled_qty': 1, 'price': 0}
             
-            # TODO: Real status from broker
-            return {'orderid': order_id, 'status': 'unknown'}
+            # Real status from SmartAPI
+            if self._smartapi_client:
+                try:
+                    response = self._smartapi_client.get_order_status(order_id)
+                    if response and response.get('status') == 'success':
+                        order_data = response.get('data', {})
+                        return {
+                            'orderid': order_id,
+                            'status': order_data.get('orderstatus', 'unknown'),
+                            'filled_qty': order_data.get('filledqty', 0),
+                            'price': order_data.get('price', 0),
+                            'average_price': order_data.get('averageprice', 0)
+                        }
+                    else:
+                        logger.error(f"Failed to get order status: {response.get('message')}")
+                        return {'orderid': order_id, 'status': 'unknown'}
+                except Exception as e:
+                    logger.error(f"SmartAPI get_order_status error: {e}")
+                    return {'orderid': order_id, 'status': 'error', 'reason': str(e)}
+            else:
+                logger.warning("SmartAPI client not available")
+                return {'orderid': order_id, 'status': 'unknown'}
             
         except Exception as e:
             logger.error(f"get_order_status({order_id}): {e}")
@@ -548,8 +642,23 @@ class AngelOneAdapter:
             if self.paper_trading:
                 return []  # No simulated positions yet
             
-            # TODO: Real positions from broker
-            return []
+            # Real positions from SmartAPI
+            if self._smartapi_client:
+                try:
+                    response = self._smartapi_client.get_positions()
+                    if response and response.get('status') == 'success':
+                        positions = response.get('data', [])
+                        logger.info(f"Retrieved {len(positions)} positions")
+                        return positions
+                    else:
+                        logger.error(f"Failed to get positions: {response.get('message')}")
+                        return []
+                except Exception as e:
+                    logger.error(f"SmartAPI get_positions error: {e}")
+                    return []
+            else:
+                logger.warning("SmartAPI client not available")
+                return []
             
         except Exception as e:
             logger.error(f"get_positions: {e}")
@@ -564,8 +673,23 @@ class AngelOneAdapter:
             if self.paper_trading:
                 return []
             
-            # TODO: Real orders from broker
-            return []
+            # Real orders from SmartAPI
+            if self._smartapi_client:
+                try:
+                    response = self._smartapi_client.get_orders()
+                    if response and response.get('status') == 'success':
+                        orders = response.get('data', [])
+                        logger.info(f"Retrieved {len(orders)} open orders")
+                        return orders
+                    else:
+                        logger.error(f"Failed to get orders: {response.get('message')}")
+                        return []
+                except Exception as e:
+                    logger.error(f"SmartAPI get_orders error: {e}")
+                    return []
+            else:
+                logger.warning("SmartAPI client not available")
+                return []
             
         except Exception as e:
             logger.error(f"get_orders: {e}")

@@ -344,3 +344,13 @@ class StrikeSelectionEngine:
             return self.scan_and_select_best_strike(put_strikes, bias, 0.0)
         else:
             return None
+
+    def get_atm_strike(self, ltp: float) -> int:
+        """
+        Calculate ATM strike from LTP using the standard interval for the
+        configured underlying (50 for NIFTY, 100 for BANKNIFTY).
+        """
+        interval = 100 if getattr(config, 'PRIMARY_UNDERLYING', 'NIFTY') == 'BANKNIFTY' else 50
+        atm = round(ltp / interval) * interval
+        logger.debug(f"ATM calculated: LTP={ltp:.2f}, ATM={atm}, interval={interval}")
+        return int(atm)

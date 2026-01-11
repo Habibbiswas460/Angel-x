@@ -69,7 +69,6 @@ class AngelXStrategy:
         if self.test_config:
             test_name = getattr(self.test_config, '__name__', 'Unknown')
             logger.info(f"🧪 TEST MODE ACTIVE: {test_name}")
-            logger.info(f"   DEMO_MODE: {getattr(self.test_config, 'DEMO_MODE', False)}")
             logger.info(f"   ORDER_PLACEMENT: {getattr(self.test_config, 'ORDER_PLACEMENT', False)}")
             logger.info("="*80)
         
@@ -203,25 +202,12 @@ class AngelXStrategy:
         try:
             logger.info("Starting ANGEL-X strategy...")
             
-            # Check demo mode
-            if config.DEMO_MODE:
-                logger.info("=" * 80)
-                logger.info("DEMO MODE ENABLED - Running in simulation")
-                logger.info("=" * 80)
-                if config.DEMO_SKIP_WEBSOCKET:
-                    logger.info("WebSocket connection skipped in demo mode")
-                    return True
-            
             # Connect to data feed
-            if config.WEBSOCKET_ENABLED and not config.DEMO_SKIP_WEBSOCKET:
+            if config.WEBSOCKET_ENABLED:
                 logger.info("Connecting to WebSocket...")
                 if not self.data_feed.connect():
                     logger.error("Failed to connect to data feed")
-                    if not config.DEMO_MODE:
-                        return False
-                    else:
-                        logger.warning("Continuing in demo mode despite connection failure")
-                        return True
+                    return False
                 
                 # Subscribe to LTP
                 instruments = [{'exchange': config.UNDERLYING_EXCHANGE, 'symbol': config.PRIMARY_UNDERLYING}]
