@@ -15,6 +15,13 @@ services:
       - TRADING_ENABLED=false  # Set to true for live trading
       - LOG_LEVEL=INFO
       - TZ=Asia/Kolkata
+      # Broker credentials (set via .env)
+      - ANGELONE_CLIENT_CODE=${ANGELONE_CLIENT_CODE:-}
+      - ANGELONE_API_KEY=${ANGELONE_API_KEY:-}
+      - ANGELONE_FEED_TOKEN=${ANGELONE_FEED_TOKEN:-}
+      # Monitoring alerts (set via .env)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
     volumes:
       # Mount config (create config.py from config.example.py before running)
       - ./config/config.py:/app/config/config.py:ro
@@ -22,8 +29,13 @@ services:
       - ./logs:/app/logs
       # Mount data directory for persistence
       - ./data:/app/data
+      # Mount ticks for backtesting
+      - ./ticks:/app/ticks:ro
     networks:
       - angel-x-network
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
@@ -90,6 +102,26 @@ services:
       - angel-x-network
     profiles:
       - monitoring
+
+  # Prometheus for metrics collection (optional)
+  prometheus-monitoring:
+    image: prom/prometheus:latest
+    container_name: angel-x-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    networks:
+      - angel-x-network
+    profiles:
+      - monitoring
+    depends_on:
+      - angel-x
     depends_on:
       - prometheus
 
