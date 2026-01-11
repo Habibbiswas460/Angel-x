@@ -1,7 +1,15 @@
 """System monitoring and metrics collection"""
 
 from .health_monitor import HealthMonitor, AlertConfig, TelegramAlerter, MetricsCollector, get_monitor
-from .prometheus import PrometheusMetrics, create_prometheus_blueprint, get_prometheus_metrics
+
+# Optional imports for Flask
+try:
+    from .prometheus import PrometheusMetrics, create_prometheus_blueprint, get_prometheus_metrics
+except ImportError:
+    # Flask not installed; skip Prometheus blueprint setup
+    PrometheusMetrics = None
+    create_prometheus_blueprint = None
+    get_prometheus_metrics = None
 
 __all__ = [
     'HealthMonitor',
