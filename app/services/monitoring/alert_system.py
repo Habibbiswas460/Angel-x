@@ -160,9 +160,9 @@ Alert ID: {alert.alert_id}
             msg.attach(MIMEText(body, 'plain'))
             
             # Send email
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
+            with smtplib.SMTP(str(smtp_server), int(smtp_port or 587)) as server:
                 server.starttls()
-                server.login(sender_email, sender_password)
+                server.login(str(sender_email), str(sender_password))
                 server.send_message(msg)
             
             logger.info(f"Email alert sent: {alert.alert_id}")

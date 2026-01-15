@@ -21,7 +21,7 @@ SYSTEM_STATUS = {
     "Entry Signal Generator": "✅ Complete",
     "Risk Management": "✅ Complete",
     "Analytics Dashboard": "✅ Complete",
-    "Adaptive Learning": "✅ Complete"
+    "Adaptive Learning": "✅ Complete",
 }
 
 # System capabilities
@@ -35,23 +35,27 @@ CAPABILITIES = [
     "Analytics-powered (Real-time Dashboard)",
     "Self-correcting (Adaptive Learning)",
     "Emotion-proof (Confidence-based Decisions)",
-    "Market-adaptive (Regime-aware Trading)"
+    "Market-adaptive (Regime-aware Trading)",
 ]
 
 # API version
 API_VERSION = "v1"
 
+
 def get_version():
     """Get version string"""
     return __version__
+
 
 def get_version_info():
     """Get version info tuple"""
     return __version_info__
 
+
 def get_full_version():
     """Get full version string with phase info"""
     return f"{__title__} v{__version__} - Institutional Trading System"
+
 
 def print_banner():
     """Print Angel-X banner"""

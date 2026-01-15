@@ -15,32 +15,26 @@ __all__ = [
     # Main Controller
     "AdaptiveController",
     "AdaptiveDecision",
-    
     # Learning
     "LearningEngine",
     "FeatureBucket",
     "LearningInsight",
-    
     # Regime Detection
     "MarketRegimeDetector",
     "MarketRegime",
     "RegimeClassification",
-    
     # Weight Management
     "AdaptiveWeightAdjuster",
     "RuleType",
-    
     # Confidence Scoring
     "ConfidenceScorer",
     "ConfidenceLevel",
     "SignalConfidence",
-    
     # Pattern Detection
     "LossPatternDetector",
     "PatternType",
     "LossPattern",
-    
     # Safety
     "SafetyGuardSystem",
-    "SafetyCheck"
+    "SafetyCheck",
 ]

@@ -10,8 +10,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Tuple, Optional
 from src.utils.trade_models import (
-    Phase6Config, RiskLimitStatus, OrderPlacementRequest,
-    TradeLevel, calculate_position_risk
+    Phase6Config,
+    RiskLimitStatus,
+    OrderPlacementRequest,
+    TradeLevel,
+    calculate_position_risk,
 )
 
 
@@ -19,12 +22,13 @@ from src.utils.trade_models import (
 # PRE-ORDER SAFETY GATE
 # ============================================================================
 
+
 class PreOrderSafetyGate:
     """Final checks before order placement"""
-    
+
     def __init__(self, config: Optional[Phase6Config] = None):
         self.config = config or Phase6Config()
-    
+
     def can_place_order(
         self,
         current_time: datetime,
@@ -37,79 +41,79 @@ class PreOrderSafetyGate:
         Final pre-order safety checks
         Returns: (can_trade, summary_reason, detailed_checks)
         """
-        
+
         checks = []
         blocking = False
-        
+
         # Check 1: Market is open
         check1 = market_open
         checks.append(("Market Open", check1))
         if not check1:
             blocking = True
-        
+
         # Check 2: Trade signal is allowed
         check2 = trade_allowed
         checks.append(("Trade Allowed Signal", check2))
         if not check2:
             blocking = True
-        
+
         # Check 3: No active position
         check3 = active_positions == 0
         checks.append(("No Active Position", check3))
         if not check3:
             blocking = True
-        
+
         # Check 4: Risk limits OK
         can_trade, risk_msg = risk_limits.can_trade(current_time)
         checks.append(("Risk Limits OK", can_trade))
         if not can_trade:
             blocking = True
-        
+
         # Check 5: Not in trading lock
         check5 = not risk_limits.trading_locked
         checks.append(("Not Trading Locked", check5))
         if not check5:
             blocking = True
-        
+
         # Generate summary
         passed = sum(1 for _, result in checks if result)
         total = len(checks)
         summary = f"{passed}/{total} checks passed"
-        
+
         if blocking:
             failed_checks = [name for name, result in checks if not result]
             reason = f"BLOCKED: {', '.join(failed_checks)}"
         else:
             reason = "All checks passed ✓"
-        
+
         return not blocking, reason, checks
-    
+
     def validate_order_request(
         self,
         request: OrderPlacementRequest,
     ) -> Tuple[bool, str]:
         """Validate order placement request"""
-        
+
         # Quantity check
         if request.quantity < self.config.min_position_size:
             return False, f"Quantity {request.quantity} below minimum {self.config.min_position_size}"
-        
+
         if request.quantity > self.config.max_position_size:
             return False, f"Quantity {request.quantity} above maximum {self.config.max_position_size}"
-        
+
         # Price check
         if request.sl_price <= 0 or request.entry_price <= 0:
             return False, "Invalid prices (must be positive)"
-        
+
         # SL distance check
         sl_distance = abs(request.entry_price - request.sl_price)
-        
+
         if sl_distance < self.config.min_sl_distance_points:
             return False, f"SL too close ({sl_distance} < {self.config.min_sl_distance_points})"
-        
+
         if sl_distance > self.config.max_sl_distance_points:
             return False, f"SL too far ({sl_distance} > {self.config.max_sl_distance_points})"
-        
+
         return True, "Valid order request ✓"
 
 
@@ -117,15 +121,16 @@ class PreOrderSafetyGate:
 # POSITION SIZING ENGINE (Fixed-Risk)
 # ============================================================================
 
+
 class PositionSizingEngine:
     """
     Calculate quantity based on fixed risk.
     Core principle: Risk is fixed, quantity is calculated
     """
-    
+
     def __init__(self, config: Optional[Phase6Config] = None):
         self.config = config or Phase6Config()
-    
+
     def calculate_quantity(
         self,
         entry_price: float,
@@ -135,36 +140,36 @@ class PositionSizingEngine:
     ) -> Tuple[int, float, str]:
         """
         Calculate quantity based on fixed risk
-        
+
         Returns: (quantity, actual_risk, reason)
         """
-        
+
         # Use configured risk if not specified
         risk_amount = risk_budget or self.config.fixed_risk_per_trade
-        
+
         # Calculate point distance
         point_distance = abs(entry_price - sl_price)
-        
+
         if point_distance < 0.01:
             return 0, 0.0, "SL distance too small"
-        
+
         # Risk per point (in ₹)
         risk_per_point = 100  # 1 point = ₹100 per contract
-        
+
         # Base quantity
         base_quantity = risk_amount / (point_distance * risk_per_point)
-        
+
         # Apply volatility adjustment
         # High vol → reduce size (survive first)
         adjusted_quantity = base_quantity / volatility_factor
-        
+
         # Round to integer
         quantity = max(int(adjusted_quantity), self.config.min_position_size)
         quantity = min(quantity, self.config.max_position_size)
-        
+
         # Calculate actual risk at this quantity
         actual_risk = calculate_position_risk(entry_price, sl_price, quantity)
-        
+
         # Reasoning
         reason = (
             f"Fixed Risk: ₹{risk_amount:.0f} | "
@@ -172,9 +177,9 @@ class PositionSizingEngine:
             f"Quantity: {quantity} | "
             f"Actual Risk: ₹{actual_risk:.0f}"
         )
-        
+
         return quantity, actual_risk, reason
-    
+
     def adjust_for_volatility(
         self,
         base_quantity: int,
@@ -185,7 +190,7 @@ class PositionSizingEngine:
         Reduce quantity if IV is high
         Philosophy: When volatility high, risk more → reduce size
         """
-        
+
         if current_iv > iv_threshold:
             # High IV
             factor = min(current_iv / iv_threshold, 2.0)  # Max 50% reduction
@@ -195,7 +200,7 @@ class PositionSizingEngine:
             # Normal IV
             adjusted = base_quantity
             reason = f"IV normal ({current_iv:.2f}), using {adjusted}"
-        
+
         return adjusted, reason
 
 
@@ -203,15 +208,16 @@ class PositionSizingEngine:
 # STOP-LOSS CALCULATION ENGINE
 # ============================================================================
 
+
 class StopLossCalculationEngine:
     """
     Calculate SL based on market structure, not arbitrary %.
     Options: Delta flip zone, Gamma exhaustion, Hard % SL (backup)
     """
-    
+
     def __init__(self, config: Optional[Phase6Config] = None):
         self.config = config or Phase6Config()
-    
+
     def calculate_sl_price(
         self,
         entry_price: float,
@@ -225,10 +231,10 @@ class StopLossCalculationEngine:
         Calculate SL price based on structure
         Priority: 1) Delta flip, 2) Gamma exhaustion, 3) Hard %
         """
-        
+
         sl_price = None
         method = None
-        
+
         # Method 1: Delta flip zone
         if delta_ce is not None and delta_pe is not None:
             if option_type == "CE":
@@ -244,7 +250,7 @@ class StopLossCalculationEngine:
                 delta_flip_sl = entry_price + 15
                 sl_price = delta_flip_sl
                 method = "Delta flip zone"
-        
+
         # Method 2: Gamma exhaustion (if delta not available)
         if sl_price is None and gamma_ce is not None and gamma_pe is not None:
             if gamma_ce > gamma_pe:
@@ -252,17 +258,17 @@ class StopLossCalculationEngine:
                 exhaustion_sl = entry_price - 10  # Conservative
             else:
                 exhaustion_sl = entry_price + 10
-            
+
             if exhaustion_sl > 0:
                 sl_price = exhaustion_sl
                 method = "Gamma exhaustion"
-        
+
         # Method 3: Hard % SL (backup)
         if sl_price is None:
             hard_sl = entry_price * (1 - self.config.hard_sl_percent / 100)
             sl_price = max(hard_sl, 0)
             method = "Hard 2% SL"
-        
+
         # Ensure minimum distance
         distance = abs(entry_price - sl_price)
         if distance < self.config.min_sl_distance_points:
@@ -272,7 +278,7 @@ class StopLossCalculationEngine:
             else:
                 sl_price = entry_price + self.config.min_sl_distance_points
             method += f" (adjusted to min distance {self.config.min_sl_distance_points}pts)"
-        
+
         # Cap maximum distance
         if distance > self.config.max_sl_distance_points:
             if option_type == "CE":
@@ -280,7 +286,7 @@ class StopLossCalculationEngine:
             else:
                 sl_price = entry_price + self.config.max_sl_distance_points
             method += f" (capped to max distance {self.config.max_sl_distance_points}pts)"
-        
+
         # Create TradeLevel
         trade_level = TradeLevel(
             price=sl_price,
@@ -288,7 +294,7 @@ class StopLossCalculationEngine:
             reason=method,
             delta_at_level=delta_pe if option_type == "CE" else delta_ce,
         )
-        
+
         return sl_price, method, trade_level
 
 
@@ -296,12 +302,13 @@ class StopLossCalculationEngine:
 # TARGET CALCULATION ENGINE
 # ============================================================================
 
+
 class TargetCalculationEngine:
     """Calculate initial profit target"""
-    
+
     def __init__(self, config: Optional[Phase6Config] = None):
         self.config = config or Phase6Config()
-    
+
     def calculate_target_price(
         self,
         entry_price: float,
@@ -312,20 +319,20 @@ class TargetCalculationEngine:
         CE: entry + target%, PE: entry - target%
         (For options, CE gains value when underlying goes up, PE when it goes down)
         """
-        
+
         if option_type == "CE":
             target = entry_price + (entry_price * self.config.initial_target_percent / 100)
         else:
             target = entry_price - (entry_price * self.config.initial_target_percent / 100)
-        
+
         target = max(target, 0)
-        
+
         trade_level = TradeLevel(
             price=target,
             level_type="TARGET",
             reason=f"Conservative {self.config.initial_target_percent}% target",
         )
-        
+
         return target, trade_level
 
 
@@ -333,9 +340,10 @@ class TargetCalculationEngine:
 # ORDER PREPARATION
 # ============================================================================
 
+
 class OrderPreparationEngine:
     """Prepare complete order with all calculations"""
-    
+
     def __init__(
         self,
         config: Optional[Phase6Config] = None,
@@ -349,7 +357,7 @@ class OrderPreparationEngine:
         self.sizing_engine = sizing_engine or PositionSizingEngine(config)
         self.sl_engine = sl_engine or StopLossCalculationEngine(config)
         self.target_engine = target_engine or TargetCalculationEngine(config)
-    
+
     def prepare_order(
         self,
         entry_price: float,
@@ -364,7 +372,7 @@ class OrderPreparationEngine:
         Prepare complete order with all calculations
         Returns: dict with quantity, SL, target, reasoning
         """
-        
+
         result = {
             "entry_price": entry_price,
             "option_type": option_type,
@@ -374,7 +382,7 @@ class OrderPreparationEngine:
             "delta_entry": delta_ce if option_type == "CE" else delta_pe,
             "gamma_entry": gamma_ce if option_type == "CE" else gamma_pe,
         }
-        
+
         # Step 1: Calculate SL
         sl_price, sl_method, sl_level = self.sl_engine.calculate_sl_price(
             entry_price=entry_price,
@@ -387,7 +395,7 @@ class OrderPreparationEngine:
         result["sl_price"] = sl_price
         result["sl_level"] = sl_level
         result["calculations"]["sl_method"] = sl_method
-        
+
         # Step 2: Calculate quantity (fixed-risk)
         quantity, actual_risk, sizing_reason = self.sizing_engine.calculate_quantity(
             entry_price=entry_price,
@@ -398,7 +406,7 @@ class OrderPreparationEngine:
         result["quantity"] = quantity
         result["actual_risk"] = actual_risk
         result["calculations"]["sizing"] = sizing_reason
-        
+
         # Step 3: Calculate target
         target_price, target_level = self.target_engine.calculate_target_price(
             entry_price=entry_price,
@@ -406,12 +414,12 @@ class OrderPreparationEngine:
         )
         result["target_price"] = target_price
         result["target_level"] = target_level
-        
+
         # Calculate RR ratio
         point_risk = abs(entry_price - sl_price)
         point_reward = abs(target_price - entry_price)
         if point_risk > 0:
             rr_ratio = point_reward / point_risk
             result["risk_reward_ratio"] = rr_ratio
-        
+
         return result

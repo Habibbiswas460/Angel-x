@@ -8,9 +8,11 @@ import logging
 import time
 from enum import Enum
 from typing import Optional
+
 # OpenAlgo dependency removed; use AngelOne adapter instead
 try:
     from src.integrations.angelone.angelone_client import AngelOneClient
+
     _angelone_import_error = None
 except Exception as exc:
     AngelOneClient = None
@@ -24,18 +26,21 @@ logger = StrategyLogger.get_logger(__name__)
 
 class OrderAction(Enum):
     """Order action"""
+
     BUY = "BUY"
     SELL = "SELL"
 
 
 class OrderType(Enum):
     """Order type"""
+
     MARKET = "MARKET"
     LIMIT = "LIMIT"
 
 
 class ProductType(Enum):
     """Product type"""
+
     MIS = "MIS"
     NRML = "NRML"
 
@@ -46,32 +51,29 @@ class OrderManager:
     Interfaces with OpenAlgo API for order placement and management
     With retry logic and timeout handling for local network resilience
     """
-    
+
     def __init__(self):
         """Initialize order manager"""
-        data_src = getattr(config, 'DATA_SOURCE', 'openalgo')
+        data_src = getattr(config, "DATA_SOURCE", "openalgo")
         self.risk_manager = RiskManager()
-        if data_src == 'angelone':
+        if data_src == "angelone":
             if AngelOneClient is None:
                 logger.error("AngelOne adapter not available", exc_info=_angelone_import_error)
                 self.client = None
             else:
                 try:
-                    self.client = AngelOneClient(
-                        api_key=getattr(config, 'BROKER_API_KEY', None),
-                        ws_url=getattr(config, 'BROKER_WS_URL', None),
-                        client_id=getattr(config, 'BROKER_CLIENT_ID', None),
-                        config_obj=config
-                    )
+                    self.client = AngelOneClient()
                     logger.info("OrderManager initialized with AngelOne adapter")
                 except Exception as e:
                     logger.error(f"Failed to initialize AngelOne client: {e}")
                     self.client = None
         else:
             # OpenAlgo support removed — only `angelone` adapter is supported now
-            logger.warning("OpenAlgo integration removed; set DATA_SOURCE='angelone' and provide AngelOne credentials if needed")
+            logger.warning(
+                "OpenAlgo integration removed; set DATA_SOURCE='angelone' and provide AngelOne credentials if needed"
+            )
             self.client = None
-        
+
         self.active_orders = {}
         self.order_counter = 0
 
@@ -79,20 +81,23 @@ class OrderManager:
         """Fetch quote using available AngelOne SmartAPI client if possible."""
         try:
             # Prefer underlying angelone client's smart_client if present
-            if self.client and hasattr(self.client, 'smart_client') and getattr(self.client, 'smart_client'):
-                smart_client = getattr(self.client, 'smart_client')
-                if hasattr(smart_client, 'get_quote'):
+            if self.client and hasattr(self.client, "smart_client") and getattr(self.client, "smart_client"):
+                smart_client = getattr(self.client, "smart_client")
+                if hasattr(smart_client, "get_quote"):
                     return smart_client.get_quote(exchange, symbol)
             # Best-effort: try direct SmartAPIClient (avoid duplicate login if not configured)
             try:
                 from src.integrations.angelone.smartapi_integration import SmartAPIClient  # lazy import
                 import os
-                api_key = os.getenv('ANGELONE_API_KEY', '')
-                client_code = os.getenv('ANGELONE_CLIENT_CODE', '')
-                password = os.getenv('ANGELONE_PASSWORD', '')
-                totp_secret = os.getenv('ANGELONE_TOTP_SECRET', '')
+
+                api_key = os.getenv("ANGELONE_API_KEY", "")
+                client_code = os.getenv("ANGELONE_CLIENT_CODE", "")
+                password = os.getenv("ANGELONE_PASSWORD", "")
+                totp_secret = os.getenv("ANGELONE_TOTP_SECRET", "")
                 if api_key and client_code and password and totp_secret:
-                    tmp_client = SmartAPIClient(api_key=api_key, client_code=client_code, password=password, totp_secret=totp_secret)
+                    tmp_client = SmartAPIClient(
+                        api_key=api_key, client_code=client_code, password=password, totp_secret=totp_secret
+                    )
                     if tmp_client and tmp_client.login():
                         return tmp_client.get_quote(exchange, symbol)
             except Exception:
@@ -112,13 +117,13 @@ class OrderManager:
                 return False, "Trading not allowed (halted or outside hours)"
 
             # Enforce live trading gate: if not paper and not explicitly enabled, block
-            if not config.PAPER_TRADING and not getattr(config, 'TRADING_ENABLED', False):
+            if not config.PAPER_TRADING and not getattr(config, "TRADING_ENABLED", False):
                 return False, "TRADING_ENABLED is False; live orders blocked"
 
             # Basic position/risk checks
             trade_info = {
-                'symbol': symbol,
-                'quantity': int(quantity or 0),
+                "symbol": symbol,
+                "quantity": int(quantity or 0),
             }
             allowed, reason = self.risk_manager.can_take_trade(trade_info)
             if not allowed:
@@ -130,29 +135,29 @@ class OrderManager:
                 # Fail-closed in live mode when no quote
                 return False, "No quote available for safety checks"
 
-            if quote and isinstance(quote, dict) and 'data' in quote:
-                qd = quote['data']
-                ltp = float(qd.get('ltp', 0) or 0)
-                bid = float(qd.get('bidprice', 0) or 0)
-                ask = float(qd.get('askprice', 0) or 0)
-                vol = int(qd.get('volume', 0) or 0)
-                oi = int(qd.get('oi', 0) or 0)
+            if quote and isinstance(quote, dict) and "data" in quote:
+                qd = quote["data"]
+                ltp = float(qd.get("ltp", 0) or 0)
+                bid = float(qd.get("bidprice", 0) or 0)
+                ask = float(qd.get("askprice", 0) or 0)
+                vol = int(qd.get("volume", 0) or 0)
+                oi = int(qd.get("oi", 0) or 0)
 
                 # Require both bid and ask if configured
-                if getattr(config, 'REQUIRE_BID_ASK_BOTH', True):
+                if getattr(config, "REQUIRE_BID_ASK_BOTH", True):
                     if bid <= 0 or ask <= 0:
                         return False, "Bid/Ask not available"
 
                 # Spread percent check
                 if ltp > 0 and bid > 0 and ask > 0:
                     spread_pct = ((ask - bid) / ltp) * 100.0 if ask >= bid else 0.0
-                    if spread_pct > getattr(config, 'MAX_SPREAD_PERCENT', 1.0):
+                    if spread_pct > getattr(config, "MAX_SPREAD_PERCENT", 1.0):
                         return False, f"Spread too wide: {spread_pct:.2f}%"
 
                 # Liquidity checks
-                if vol < getattr(config, 'MIN_VOLUME_THRESHOLD', 50):
+                if vol < getattr(config, "MIN_VOLUME_THRESHOLD", 50):
                     return False, f"Low volume: {vol} < {config.MIN_VOLUME_THRESHOLD}"
-                if oi < getattr(config, 'MIN_OI_THRESHOLD', 100):
+                if oi < getattr(config, "MIN_OI_THRESHOLD", 100):
                     return False, f"Low OI: {oi} < {config.MIN_OI_THRESHOLD}"
 
             # Note: Data freshness and LTP jump checks require timestamp history; skipped if unavailable
@@ -166,57 +171,55 @@ class OrderManager:
     def _simulate_response(self, payload: dict) -> dict:
         """Simulate an order response in PAPER_TRADING mode"""
         import random
-        sim = {
-            'status': 'success',
-            'orderid': f"PAPER_{int(time.time())}_{random.randint(1000,9999)}"
-        }
+
+        sim = {"status": "success", "orderid": f"PAPER_{int(time.time())}_{random.randint(1000,9999)}"}
         sim.update(payload)
         return sim
-    
+
     def _api_call_with_retry(self, api_func, *args, **kwargs):
         """
         Execute API call with retry logic and timeout handling
-        
+
         Args:
             api_func: The API function to call
             *args, **kwargs: Arguments to pass to the function
-            
+
         Returns:
             API response or None if all retries fail
         """
         retry_count = 0
         max_retries = config.API_RETRY_ATTEMPTS
-        
+
         while retry_count < max_retries:
             try:
                 # Add timeout to kwargs if not already present
-                if 'timeout' not in kwargs:
-                    kwargs['timeout'] = config.API_REQUEST_TIMEOUT
-                
+                if "timeout" not in kwargs:
+                    kwargs["timeout"] = config.API_REQUEST_TIMEOUT
+
                 result = api_func(*args, **kwargs)
                 return result
-                
+
             except TimeoutError:
                 retry_count += 1
                 logger.warning(f"API call timeout (attempt {retry_count}/{max_retries})")
                 if retry_count < max_retries:
                     time.sleep(config.API_RETRY_DELAY)
-                    
+
             except ConnectionError as e:
                 retry_count += 1
                 logger.warning(f"Connection error: {e} (attempt {retry_count}/{max_retries})")
                 if retry_count < max_retries:
                     time.sleep(config.API_RETRY_DELAY)
-                    
+
             except Exception as e:
                 retry_count += 1
                 logger.error(f"API error: {e} (attempt {retry_count}/{max_retries})")
                 if retry_count < max_retries:
                     time.sleep(config.API_RETRY_DELAY)
-        
+
         logger.error(f"API call failed after {max_retries} attempts")
         return None
-    
+
     def place_order(
         self,
         exchange: str,
@@ -225,12 +228,12 @@ class OrderManager:
         order_type: OrderType,
         price: float,
         quantity: int,
-        product: ProductType = ProductType.MIS
+        product: ProductType = ProductType.MIS,
     ) -> Optional[dict]:
         """
         Place an order with retry logic
         Supports both paper trading (simulated) and live trading
-        
+
         Args:
             exchange: NSE, BSE, MCX, NCDEX
             symbol: Stock/option symbol
@@ -239,34 +242,34 @@ class OrderManager:
             price: Order price (for LIMIT orders)
             quantity: Number of units
             product: MIS or NRML
-        
+
         Returns:
             Order response dict or None if failed
         """
         # Intent snapshot for audit
         intent = {
-            'stage': 'INTENT',
-            'exchange': exchange,
-            'symbol': symbol,
-            'action': action.value if isinstance(action, OrderAction) else str(action),
-            'order_type': order_type.value if isinstance(order_type, OrderType) else str(order_type),
-            'price': price,
-            'quantity': quantity,
-            'paper': bool(getattr(config, 'PAPER_TRADING', True)),
+            "stage": "INTENT",
+            "exchange": exchange,
+            "symbol": symbol,
+            "action": action.value if isinstance(action, OrderAction) else str(action),
+            "order_type": order_type.value if isinstance(order_type, OrderType) else str(order_type),
+            "price": price,
+            "quantity": quantity,
+            "paper": bool(getattr(config, "PAPER_TRADING", True)),
         }
-        logger.log_order({'type': 'ORDER_INTENT', **intent})
+        logger.log_order({"type": "ORDER_INTENT", **intent})
 
         if not self.client and not config.PAPER_TRADING:
             logger.error("OrderManager not initialized with API client")
-            logger.log_order({'type': 'ORDER_BLOCKED', 'reason': 'No API client for live mode', **intent})
+            logger.log_order({"type": "ORDER_BLOCKED", "reason": "No API client for live mode", **intent})
             return None
-        
+
         try:
             # Pre-execution checks
             if quantity <= 0:
                 logger.warning(f"Invalid quantity: {quantity}")
                 return None
-            
+
             if order_type == OrderType.LIMIT and price <= 0:
                 logger.warning(f"Invalid price for LIMIT order: {price}")
                 return None
@@ -275,73 +278,73 @@ class OrderManager:
             allowed, reason = self._pre_trade_checks(exchange, symbol, quantity)
             if not allowed:
                 logger.warning(f"Order blocked by pre-trade checks: {reason}")
-                logger.log_order({'type': 'ORDER_BLOCKED', 'reason': reason, **intent})
+                logger.log_order({"type": "ORDER_BLOCKED", "reason": reason, **intent})
                 return None
-            
+
             # PAPER TRADING MODE - Simulate order locally
             if config.PAPER_TRADING:
-                simulated_order = self._simulate_response({
-                    'exchange': exchange,
-                    'symbol': symbol,
-                    'action': action.value,
-                    'price': price,
-                    'quantity': quantity,
-                    'product': product.value,
-                    'order_type': order_type.value,
-                    'message': 'Paper order simulated locally',
-                    'timestamp': time.time()
-                })
-                order_id = simulated_order['orderid']
+                simulated_order = self._simulate_response(
+                    {
+                        "exchange": exchange,
+                        "symbol": symbol,
+                        "action": action.value,
+                        "price": price,
+                        "quantity": quantity,
+                        "product": product.value,
+                        "order_type": order_type.value,
+                        "message": "Paper order simulated locally",
+                        "timestamp": time.time(),
+                    }
+                )
+                order_id = simulated_order["orderid"]
                 self.active_orders[order_id] = simulated_order
                 logger.info(
-                    f"📄 PAPER ORDER: {action.value} {quantity} {symbol} @ ₹{price:.2f} | "
-                    f"Order ID: {order_id}"
+                    f"📄 PAPER ORDER: {action.value} {quantity} {symbol} @ ₹{price:.2f} | " f"Order ID: {order_id}"
                 )
-                logger.log_order({'type': 'ORDER_SIMULATED', **simulated_order})
+                logger.log_order({"type": "ORDER_SIMULATED", **simulated_order})
                 return simulated_order
                 logger.warning(f"Invalid price for LIMIT order: {price}")
                 return None
-            
+
             # Prepare order parameters
             order_params = {
-                'exchange': exchange,
-                'symbol': symbol,
-                'action': action.value,
-                'price_type': order_type.value,
-                'price': price if order_type == OrderType.LIMIT else 0,
-                'quantity': quantity,
-                'product': product.value,
-                'order_type': 'REGULAR',
-                'strategy': config.STRATEGY_NAME
+                "exchange": exchange,
+                "symbol": symbol,
+                "action": action.value,
+                "price_type": order_type.value,
+                "price": price if order_type == OrderType.LIMIT else 0,
+                "quantity": quantity,
+                "product": product.value,
+                "order_type": "REGULAR",
+                "strategy": config.STRATEGY_NAME,
             }
-            
+
             # Try OpenAlgo-style placeorder first, otherwise use adapter place_order
-            if hasattr(self.client, 'placeorder'):
+            if hasattr(self.client, "placeorder"):
                 response = self.client.placeorder(**order_params)
-            elif hasattr(self.client, 'place_order'):
+            elif hasattr(self.client, "place_order"):
                 response = self.client.place_order(order_params)
             else:
                 logger.error("Client does not support order placement")
                 return None
-            
-            if response and 'status' in response:
-                order_id = response.get('orderid')
+
+            if response and "status" in response:
+                order_id = response.get("orderid")
                 self.active_orders[order_id] = response
-                
+
                 logger.info(
-                    f"Order placed: {action.value} {quantity} {symbol} @ ₹{price:.2f} | "
-                    f"Order ID: {order_id}"
+                    f"Order placed: {action.value} {quantity} {symbol} @ ₹{price:.2f} | " f"Order ID: {order_id}"
                 )
-                logger.log_order({'type': 'ORDER_PLACED', 'orderid': order_id, **intent})
+                logger.log_order({"type": "ORDER_PLACED", "orderid": order_id, **intent})
                 return response
             else:
                 logger.error(f"Order placement failed: {response}")
-                logger.log_order({'type': 'ORDER_REJECTED', 'response': response, **intent})
+                logger.log_order({"type": "ORDER_REJECTED", "response": response, **intent})
                 return None
-        
+
         except Exception as e:
             logger.error(f"Error placing order: {e}")
-            logger.log_order({'type': 'ORDER_ERROR', 'error': str(e), **intent})
+            logger.log_order({"type": "ORDER_ERROR", "error": str(e), **intent})
             return None
 
     def resolve_option_symbol(self, underlying: str, expiry_date: str, offset: str, option_type: str) -> Optional[dict]:
@@ -350,25 +353,25 @@ class OrderManager:
             if config.PAPER_TRADING:
                 # Simulate symbol resolution
                 return {
-                    'status': 'success',
-                    'symbol': f"{underlying}{expiry_date}{offset}{option_type}",
-                    'exchange': 'NFO',
-                    'lotsize': config.MINIMUM_LOT_SIZE
+                    "status": "success",
+                    "symbol": f"{underlying}{expiry_date}{offset}{option_type}",
+                    "exchange": "NFO",
+                    "lotsize": config.MINIMUM_LOT_SIZE,
                 }
             if not self.client:
                 return None
             # Prefer OpenAlgo optionsymbol, else try adapter get_option_chain
-            if hasattr(self.client, 'optionsymbol'):
+            if hasattr(self.client, "optionsymbol"):
                 resp = self._api_call_with_retry(
                     self.client.optionsymbol,
                     underlying=underlying,
                     exchange=config.DEFAULT_UNDERLYING_EXCHANGE,
                     expiry_date=expiry_date,
                     offset=offset,
-                    option_type=option_type
+                    option_type=option_type,
                 )
                 return resp
-            elif hasattr(self.client, 'get_option_chain'):
+            elif hasattr(self.client, "get_option_chain"):
                 resp = self.client.get_option_chain(underlying)
                 return resp
             else:
@@ -389,102 +392,98 @@ class OrderManager:
         quantity: int,
         pricetype: Optional[str] = None,
         product: Optional[str] = None,
-        splitsize: int = 0
+        splitsize: int = 0,
     ) -> Optional[dict]:
         """Place an options order using OpenAlgo optionsorder (ATM/ITM/OTM offset)."""
         try:
             pricetype = pricetype or config.DEFAULT_OPTION_PRICE_TYPE
             product = product or config.DEFAULT_OPTION_PRODUCT
             payload = {
-                'strategy': strategy,
-                'underlying': underlying,
-                'exchange': config.DEFAULT_UNDERLYING_EXCHANGE,
-                'expiry_date': expiry_date,
-                'offset': offset,
-                'option_type': option_type,
-                'action': action,
-                'quantity': quantity,
-                'pricetype': pricetype,
-                'product': product,
-                'splitsize': splitsize
+                "strategy": strategy,
+                "underlying": underlying,
+                "exchange": config.DEFAULT_UNDERLYING_EXCHANGE,
+                "expiry_date": expiry_date,
+                "offset": offset,
+                "option_type": option_type,
+                "action": action,
+                "quantity": quantity,
+                "pricetype": pricetype,
+                "product": product,
+                "splitsize": splitsize,
             }
-            logger.log_order({'type': 'OPTIONSORDER_INTENT', **payload})
+            logger.log_order({"type": "OPTIONSORDER_INTENT", **payload})
             if config.PAPER_TRADING:
                 sim = self._simulate_response(payload)
-                self.active_orders[sim['orderid']] = sim
+                self.active_orders[sim["orderid"]] = sim
                 logger.info(f"📄 PAPER OPTIONS ORDER: {payload}")
                 return sim
             if not self.client:
                 logger.error("Client not initialized")
                 return None
-            if hasattr(self.client, 'optionsorder'):
+            if hasattr(self.client, "optionsorder"):
                 resp = self._api_call_with_retry(self.client.optionsorder, **payload)
-            elif hasattr(self.client, 'place_order'):
+            elif hasattr(self.client, "place_order"):
                 resp = self.client.place_order(payload)
             else:
                 logger.error("Client does not support options order placement")
                 return None
-            if resp and resp.get('status') == 'success':
+            if resp and resp.get("status") == "success":
                 # Check if analyzer mode (paper trading)
-                if resp.get('mode') == 'analyze':
+                if resp.get("mode") == "analyze":
                     logger.warning(f"⚠️ ANALYZER MODE: Order simulated, not live. Response: {resp}")
-                    logger.log_order({'type': 'OPTIONSORDER_ANALYZER', 'response': resp})
+                    logger.log_order({"type": "OPTIONSORDER_ANALYZER", "response": resp})
                 else:
                     logger.info(f"Options order placed: {resp}")
-                    logger.log_order({'type': 'OPTIONSORDER_PLACED', 'response': resp})
-                self.active_orders[resp.get('orderid')] = resp
+                    logger.log_order({"type": "OPTIONSORDER_PLACED", "response": resp})
+                self.active_orders[resp.get("orderid")] = resp
                 return resp
             logger.error(f"Options order failed: {resp}")
-            logger.log_order({'type': 'OPTIONSORDER_REJECTED', 'response': resp})
+            logger.log_order({"type": "OPTIONSORDER_REJECTED", "response": resp})
             return None
         except Exception as e:
             logger.error(f"Error placing options order: {e}")
             return None
 
     def place_options_multi_order(
-        self,
-        strategy: str,
-        underlying: str,
-        legs: list,
-        expiry_date: Optional[str] = None
+        self, strategy: str, underlying: str, legs: list, expiry_date: Optional[str] = None
     ) -> Optional[dict]:
         """Place multi-leg options order using optionsmultiorder."""
         try:
             payload = {
-                'strategy': strategy,
-                'underlying': underlying,
-                'exchange': config.DEFAULT_UNDERLYING_EXCHANGE,
+                "strategy": strategy,
+                "underlying": underlying,
+                "exchange": config.DEFAULT_UNDERLYING_EXCHANGE,
             }
             if expiry_date:
-                payload['expiry_date'] = expiry_date
-            payload['legs'] = legs
-            logger.log_order({'type': 'MULTIORDER_INTENT', **payload})
+                payload["expiry_date"] = expiry_date
+            payload["legs"] = legs
+            logger.log_order({"type": "MULTIORDER_INTENT", **payload})
             if config.PAPER_TRADING:
                 sim = self._simulate_response(payload)
                 logger.info(f"📄 PAPER OPTIONS MULTI ORDER: {payload}")
-                logger.log_order({'type': 'MULTIORDER_PAPER', 'response': sim})
+                logger.log_order({"type": "MULTIORDER_PAPER", "response": sim})
                 return sim
             if not self.client:
                 logger.error("Client not initialized")
                 return None
-            if hasattr(self.client, 'optionsmultiorder'):
+            if hasattr(self.client, "optionsmultiorder"):
                 resp = self._api_call_with_retry(self.client.optionsmultiorder, **payload)
-            elif hasattr(self.client, 'place_order'):
+            elif hasattr(self.client, "place_order"):
                 resp = self.client.place_order(payload)
             else:
                 logger.error("Client does not support multi-leg options order placement")
                 return None
-            if resp and resp.get('status') == 'success':
+            if resp and resp.get("status") == "success":
                 # Check if analyzer mode (paper trading)
-                if resp.get('mode') == 'analyze':
+                if resp.get("mode") == "analyze":
                     logger.warning(f"⚠️ ANALYZER MODE: Multi-order simulated, not live. Response: {resp}")
-                    logger.log_order({'type': 'MULTIORDER_ANALYZER', 'response': resp})
+                    logger.log_order({"type": "MULTIORDER_ANALYZER", "response": resp})
                 else:
                     logger.info(f"Options multi-order placed: {resp}")
-                    logger.log_order({'type': 'MULTIORDER_PLACED', 'response': resp})
+                    logger.log_order({"type": "MULTIORDER_PLACED", "response": resp})
                 return resp
             logger.error(f"Options multi-order failed: {resp}")
-            logger.log_order({'type': 'MULTIORDER_REJECTED', 'response': resp})
+            logger.log_order({"type": "MULTIORDER_REJECTED", "response": resp})
             return None
         except Exception as e:
             logger.error(f"Error placing options multi-order: {e}")
@@ -494,20 +493,20 @@ class OrderManager:
         """Place a basket of equity orders."""
         try:
             if config.PAPER_TRADING:
-                sim = self._simulate_response({'orders': orders})
+                sim = self._simulate_response({"orders": orders})
                 logger.info(f"📄 PAPER BASKET ORDER: {orders}")
                 return sim
             if not self.client:
                 logger.error("Client not initialized")
                 return None
-            if hasattr(self.client, 'basketorder'):
+            if hasattr(self.client, "basketorder"):
                 resp = self._api_call_with_retry(self.client.basketorder, orders=orders)
-            elif hasattr(self.client, 'place_order'):
-                resp = self.client.place_order({'orders': orders})
+            elif hasattr(self.client, "place_order"):
+                resp = self.client.place_order({"orders": orders})
             else:
                 logger.error("Client does not support basket order placement")
                 return None
-            if resp and resp.get('status') == 'success':
+            if resp and resp.get("status") == "success":
                 logger.info(f"Basket order placed: {resp}")
                 return resp
             logger.error(f"Basket order failed: {resp}")
@@ -517,25 +516,18 @@ class OrderManager:
             return None
 
     def place_split_order(
-        self,
-        symbol: str,
-        exchange: str,
-        action: str,
-        quantity: int,
-        splitsize: int,
-        price_type: str,
-        product: str
+        self, symbol: str, exchange: str, action: str, quantity: int, splitsize: int, price_type: str, product: str
     ) -> Optional[dict]:
         """Place split order using OpenAlgo splitorder."""
         try:
             payload = {
-                'symbol': symbol,
-                'exchange': exchange,
-                'action': action,
-                'quantity': quantity,
-                'splitsize': splitsize,
-                'price_type': price_type,
-                'product': product
+                "symbol": symbol,
+                "exchange": exchange,
+                "action": action,
+                "quantity": quantity,
+                "splitsize": splitsize,
+                "price_type": price_type,
+                "product": product,
             }
             if config.PAPER_TRADING:
                 sim = self._simulate_response(payload)
@@ -544,14 +536,14 @@ class OrderManager:
             if not self.client:
                 logger.error("Client not initialized")
                 return None
-            if hasattr(self.client, 'splitorder'):
+            if hasattr(self.client, "splitorder"):
                 resp = self._api_call_with_retry(self.client.splitorder, **payload)
-            elif hasattr(self.client, 'place_order'):
+            elif hasattr(self.client, "place_order"):
                 resp = self.client.place_order(payload)
             else:
                 logger.error("Client does not support split order placement")
                 return None
-            if resp and resp.get('status') == 'success':
+            if resp and resp.get("status") == "success":
                 logger.info(f"Split order placed: {resp}")
                 return resp
             logger.error(f"Split order failed: {resp}")
@@ -559,15 +551,15 @@ class OrderManager:
         except Exception as e:
             logger.error(f"Error placing split order: {e}")
             return None
-    
+
     def cancel_order(self, order_id: str) -> bool:
         """Cancel an order"""
         if not self.client:
             return False
         try:
-            if hasattr(self.client, 'cancelorder'):
+            if hasattr(self.client, "cancelorder"):
                 response = self.client.cancelorder(order_id=order_id)
-            elif hasattr(self.client, 'cancel_order'):
+            elif hasattr(self.client, "cancel_order"):
                 response = self.client.cancel_order(order_id)
             else:
                 logger.error("Client does not support order cancellation")
@@ -581,24 +573,15 @@ class OrderManager:
         except Exception as e:
             logger.error(f"Error cancelling order: {e}")
             return False
-    
-    def modify_order(
-        self,
-        order_id: str,
-        new_price: float,
-        new_quantity: int
-    ) -> bool:
+
+    def modify_order(self, order_id: str, new_price: float, new_quantity: int) -> bool:
         """Modify an order"""
         if not self.client:
             return False
         try:
-            if hasattr(self.client, 'modifyorder'):
-                response = self.client.modifyorder(
-                    order_id=order_id,
-                    price=new_price,
-                    quantity=new_quantity
-                )
-            elif hasattr(self.client, 'modify_order'):
+            if hasattr(self.client, "modifyorder"):
+                response = self.client.modifyorder(order_id=order_id, price=new_price, quantity=new_quantity)
+            elif hasattr(self.client, "modify_order"):
                 response = self.client.modify_order(order_id, price=new_price, quantity=new_quantity)
             else:
                 logger.error("Client does not support order modification")
@@ -611,42 +594,42 @@ class OrderManager:
         except Exception as e:
             logger.error(f"Error modifying order: {e}")
             return False
-    
+
     def get_order_status(self, order_id: str) -> Optional[dict]:
         """Get order status"""
         if not self.client:
             return None
         try:
             # If client has orderbook (OpenAlgo), search it
-            if hasattr(self.client, 'orderbook'):
+            if hasattr(self.client, "orderbook"):
                 response = self.client.orderbook()
                 if response:
                     for order in response:
-                        if order.get('orderid') == order_id:
+                        if order.get("orderid") == order_id:
                             return order
                 return None
             # Else use adapter get_order_status
-            if hasattr(self.client, 'get_order_status'):
+            if hasattr(self.client, "get_order_status"):
                 return self.client.get_order_status(order_id)
             logger.error("Client does not support fetching order status")
             return None
         except Exception as e:
             logger.error(f"Error getting order status: {e}")
             return None
-    
+
     def get_position(self, symbol: str) -> Optional[dict]:
         """Get current position"""
         if not self.client:
             return None
         try:
-            if hasattr(self.client, 'positionbook'):
+            if hasattr(self.client, "positionbook"):
                 response = self.client.positionbook()
                 if response:
                     for position in response:
-                        if position.get('symbol') == symbol:
+                        if position.get("symbol") == symbol:
                             return position
                 return None
-            elif hasattr(self.client, 'get_position'):
+            elif hasattr(self.client, "get_position"):
                 return self.client.get_position(symbol)
             else:
                 logger.error("Client does not support position retrieval")
@@ -654,46 +637,41 @@ class OrderManager:
         except Exception as e:
             logger.error(f"Error getting position: {e}")
             return None
-    
+
     def close_position(self, symbol: str) -> bool:
         """Close entire position"""
         if not self.client:
             return False
-        
+
         try:
             position = self.get_position(symbol)
             if not position:
                 return False
-            
-            qty = position.get('netqty', 0)
+
+            qty = position.get("netqty", 0)
             if qty == 0:
                 return True
-            
+
             action = OrderAction.SELL if qty > 0 else OrderAction.BUY
-            
+
             response = self.place_order(
-                exchange='NSE',
-                symbol=symbol,
-                action=action,
-                order_type=OrderType.MARKET,
-                price=0,
-                quantity=abs(qty)
+                exchange="NSE", symbol=symbol, action=action, order_type=OrderType.MARKET, price=0, quantity=abs(qty)
             )
-            
+
             return response is not None
-        
+
         except Exception as e:
             logger.error(f"Error closing position: {e}")
             return False
-    
+
     def get_all_orders(self) -> list:
         """Get all active orders"""
         if not self.client:
             return []
         try:
-            if hasattr(self.client, 'orderbook'):
+            if hasattr(self.client, "orderbook"):
                 return self.client.orderbook() or []
-            elif hasattr(self.client, 'get_all_orders'):
+            elif hasattr(self.client, "get_all_orders"):
                 return self.client.get_all_orders() or []
             else:
                 logger.error("Client does not support listing orders")
@@ -701,15 +679,15 @@ class OrderManager:
         except Exception as e:
             logger.error(f"Error getting orders: {e}")
             return []
-    
+
     def get_all_positions(self) -> list:
         """Get all positions"""
         if not self.client:
             return []
         try:
-            if hasattr(self.client, 'positionbook'):
+            if hasattr(self.client, "positionbook"):
                 return self.client.positionbook() or []
-            elif hasattr(self.client, 'get_all_positions'):
+            elif hasattr(self.client, "get_all_positions"):
                 return self.client.get_all_positions() or []
             else:
                 logger.error("Client does not support listing positions")

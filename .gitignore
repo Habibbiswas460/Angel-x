@@ -2,6 +2,7 @@
 logs/
 *.log
 journal/
+ticks/
 
 # Python
 __pycache__/
@@ -29,6 +30,15 @@ wheels/
 venv/
 env/
 ENV/
+.venv/
+
+# Testing & Coverage
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+*.pyc
 
 # IDE
 .vscode/
@@ -44,15 +54,23 @@ Thumbs.db
 # Sensitive Configuration Files
 config/config.py
 .env
-.env.*
+.env.local
+.env.*.local
+.env.backup
+.env.old
 !.env.example
+!.env.development
+!.env.production
 src/config.py
 
 # Data files
-*.csv
+data/*.csv
+data/*.json
 *.db
 *.sqlite
+*.sqlite3
 
 # Temporary files
 *.tmp
 *.bak
+*.old

@@ -2,6 +2,7 @@
 Complete AngelOne SmartAPI Integration
 Real authentication, market data, and order placement implementation
 """
+
 import time
 import pyotp
 import logging
@@ -33,13 +34,13 @@ logger = StrategyLogger.get_logger(__name__)
 
 class SmartAPIClient:
     """Complete SmartAPI integration with real authentication and trading."""
-    
+
     def __init__(self, api_key: str, client_code: str, password: str, totp_secret: str):
         """Initialize SmartAPI client.
-        
+
         Args:
             api_key: Angel One API key
-            client_code: Client/User ID  
+            client_code: Client/User ID
             password: PIN/Password
             totp_secret: TOTP secret for 2FA
         """
@@ -47,22 +48,22 @@ class SmartAPIClient:
         self.client_code = client_code
         self.password = password
         self.totp_secret = totp_secret
-        
+
         # SmartConnect instance
         self.smart_connect: Optional[SmartConnect] = None  # type: ignore
         self.auth_token: Optional[str] = None
         self.refresh_token: Optional[str] = None
         self.feed_token: Optional[str] = None
-        
+
         logger.info("SmartAPIClient initialized")
-    
+
     # ========================================================================
     # AUTHENTICATION
     # ========================================================================
-    
+
     def generate_totp(self) -> str:
         """Generate TOTP code for 2FA authentication.
-        
+
         Returns: 6-digit TOTP code
         """
         try:
@@ -73,10 +74,10 @@ class SmartAPIClient:
         except Exception as e:
             logger.error(f"TOTP generation failed: {e}")
             raise
-    
+
     def login(self) -> bool:
         """Authenticate with Angel One SmartAPI.
-        
+
         Returns: True if login successful, False otherwise
         """
         try:
@@ -84,10 +85,10 @@ class SmartAPIClient:
                 raise ImportError(f"SmartAPI SDK not importable: {_smartapi_import_error}")
 
             logger.info("Attempting SmartAPI login...")
-            
+
             # Initialize SmartConnect
             self.smart_connect = SmartConnect(api_key=self.api_key)
-            
+
             # Use low-level call to include TOTP explicitly
             totp_code = self.generate_totp()
             payload = {
@@ -97,10 +98,10 @@ class SmartAPIClient:
             }
             data = self.smart_connect._postRequest("api.login", payload)
 
-            if data and data.get('status'):
-                jwt_token = data['data']['jwtToken']
-                refresh_token = data['data']['refreshToken']
-                feed_token = data['data'].get('feedToken') or data['data'].get('feedtoken')
+            if data and data.get("status"):
+                jwt_token = data["data"]["jwtToken"]
+                refresh_token = data["data"]["refreshToken"]
+                feed_token = data["data"].get("feedToken") or data["data"].get("feedtoken")
 
                 self.auth_token = jwt_token
                 self.refresh_token = refresh_token
@@ -118,35 +119,35 @@ class SmartAPIClient:
             else:
                 logger.error(f"Login failed: {data}")
                 return False
-                
+
         except SmartAPIException as e:
             logger.error(f"SmartAPI login exception: {e}")
             return False
         except Exception as e:
             logger.error(f"Unexpected login error: {e}")
             return False
-    
+
     def get_profile(self) -> Optional[Dict]:
         """Get user profile information.
-        
+
         Returns: Profile dict or None
         """
         try:
             if not self.smart_connect:
                 logger.error("Not authenticated")
                 return None
-            
+
             profile = self.smart_connect.getProfile(self.refresh_token)
             logger.info(f"Profile: {profile.get('data', {}).get('name', 'Unknown')}")
             return profile
-            
+
         except Exception as e:
             logger.error(f"get_profile failed: {e}")
             return None
-    
+
     def logout(self) -> bool:
         """Logout from SmartAPI.
-        
+
         Returns: True if successful
         """
         try:
@@ -157,130 +158,119 @@ class SmartAPIClient:
         except Exception as e:
             logger.error(f"Logout error: {e}")
             return False
-    
+
     # ========================================================================
     # MARKET DATA
     # ========================================================================
-    
+
     def get_ltp_data(self, exchange: str, trading_symbol: str, token: str) -> Optional[Dict]:
         """Get Last Traded Price (LTP) for a symbol.
-        
+
         Args:
             exchange: 'NSE', 'NFO', 'BSE', etc.
             trading_symbol: Symbol name (e.g., 'NIFTY23JAN24000CE')
             token: Instrument token
-        
+
         Returns: LTP data dict or None
         """
         try:
             if not self.smart_connect:
                 logger.error("Not authenticated")
                 return None
-            
-            ltp_data = self.smart_connect.ltpData(
-                exchange=exchange,
-                tradingsymbol=trading_symbol,
-                symboltoken=token
-            )
-            
-            if ltp_data and ltp_data.get('status'):
-                return ltp_data['data']
+
+            ltp_data = self.smart_connect.ltpData(exchange=exchange, tradingsymbol=trading_symbol, symboltoken=token)
+
+            if ltp_data and ltp_data.get("status"):
+                return ltp_data["data"]
             else:
                 logger.warning(f"LTP fetch failed: {ltp_data}")
                 return None
-                
+
         except Exception as e:
             logger.error(f"get_ltp_data({trading_symbol}): {e}")
             return None
-    
+
     def get_quote(self, exchange: str, trading_symbol: str, token: str = None) -> Optional[Dict]:
         """Get full quote data including Greeks for options.
-        
+
         Args:
             exchange: 'NSE', 'NFO', 'BSE', etc.
             trading_symbol: Symbol name
             token: Instrument token (optional, will search if not provided)
-        
+
         Returns: Quote data dict with Greeks or None
         """
         try:
             if not self.smart_connect:
                 logger.error("Not authenticated")
                 return None
-            
+
             # If token not provided, search for it
             if not token:
                 scrip = self.search_scrip(exchange, trading_symbol)
                 if scrip and len(scrip) > 0:
-                    token = scrip[0].get('symboltoken')
+                    token = scrip[0].get("symboltoken")
                 else:
                     logger.warning(f"Could not find token for {trading_symbol}")
                     return None
-            
+
             # Get quote data
-            quote_data = self.smart_connect.getQuote(
-                exchange=exchange,
-                tradingsymbol=trading_symbol,
-                symboltoken=token
-            )
-            
-            if quote_data and quote_data.get('status'):
+            quote_data = self.smart_connect.getQuote(exchange=exchange, tradingsymbol=trading_symbol, symboltoken=token)
+
+            if quote_data and quote_data.get("status"):
                 return quote_data
             else:
                 logger.warning(f"Quote fetch failed: {quote_data}")
                 return None
-                
+
         except Exception as e:
             logger.error(f"get_quote({trading_symbol}): {e}")
             return None
-    
+
     def search_scrip(self, exchange: str, searchtext: str) -> Optional[List[Dict]]:
         """Search for instruments by text.
-        
+
         Args:
             exchange: 'NSE', 'NFO', etc.
             searchtext: Search query (e.g., 'NIFTY')
-        
+
         Returns: List of matching instruments
         """
         try:
             if not self.smart_connect:
                 logger.error("Not authenticated")
                 return None
-            
-            results = self.smart_connect.searchScrip(
-                exchange=exchange,
-                searchtext=searchtext
-            )
-            
-            if results and results.get('status'):
-                return results['data']
+
+            results = self.smart_connect.searchScrip(exchange=exchange, searchtext=searchtext)
+
+            if results and results.get("status"):
+                return results["data"]
             return []
-            
+
         except Exception as e:
             logger.error(f"search_scrip({searchtext}): {e}")
             return None
-    
+
     # ========================================================================
     # ORDER MANAGEMENT
     # ========================================================================
-    
+
     def place_order(
         self,
         tradingsymbol: str,
         symboltoken: str,
         exchange: str,
         transactiontype: str,  # 'BUY' or 'SELL'
-        ordertype: str,        # 'MARKET', 'LIMIT', 'STOPLOSS_LIMIT', etc.
+        ordertype: str,  # 'MARKET', 'LIMIT', 'STOPLOSS_LIMIT', etc.
         quantity: int,
         price: float = 0,
         triggerprice: float = 0,
-        producttype: str = 'CARRYFORWARD',  # 'CARRYFORWARD', 'INTRADAY', 'DELIVERY'
-        duration: str = 'DAY',              # 'DAY', 'IOC'
-        variety: str = 'NORMAL'             # 'NORMAL', 'STOPLOSS', 'ROBO'
+        producttype: str = "CARRYFORWARD",  # 'CARRYFORWARD', 'INTRADAY', 'DELIVERY'
+        duration: str = "DAY",  # 'DAY', 'IOC'
+        variety: str = "NORMAL",  # 'NORMAL', 'STOPLOSS', 'ROBO'
     ) -> Optional[Dict]:
         """Place an order.
-        
+
         Args:
             tradingsymbol: Symbol name
             symboltoken: Instrument token
@@ -293,14 +283,14 @@ class SmartAPIClient:
             producttype: CARRYFORWARD or INTRADAY
             duration: DAY, IOC
             variety: NORMAL, STOPLOSS, AMO
-        
+
         Returns: Order response dict or None
         """
         try:
             if not self.smart_connect:
                 logger.error("Not authenticated")
                 return None
-            
+
             # Build order params according to AngelOne documentation
             order_params = {
                 "variety": variety,
@@ -314,43 +304,37 @@ class SmartAPIClient:
                 "price": str(price),
                 "squareoff": "0",
                 "stoploss": "0",
-                "quantity": str(quantity)
+                "quantity": str(quantity),
             }
-            
+
             # Add triggerprice only for SL orders
-            if ordertype in ['STOPLOSS_LIMIT', 'STOPLOSS_MARKET']:
+            if ordertype in ["STOPLOSS_LIMIT", "STOPLOSS_MARKET"]:
                 order_params["triggerprice"] = str(triggerprice)
-            
+
             logger.info(f"Placing order: {transactiontype} {quantity} {tradingsymbol} @ {ordertype}")
-            
+
             response = self.smart_connect.placeOrder(order_params)
-            
-            if response and response.get('status'):
-                order_id = response['data']['orderid']
+
+            if response and response.get("status"):
+                order_id = response["data"]["orderid"]
                 logger.info(f"✓ Order placed successfully: {order_id}")
-                return response['data']
+                return response["data"]
             else:
                 logger.error(f"Order placement failed: {response}")
                 return None
-                
+
         except SmartAPIException as e:
             logger.error(f"SmartAPI order error: {e}")
             return None
         except Exception as e:
             logger.error(f"place_order error: {e}")
             return None
-    
+
     def modify_order(
-        self,
-        orderid: str,
-        variety: str,
-        ordertype: str,
-        quantity: int,
-        price: float = 0,
-        triggerprice: float = 0
+        self, orderid: str, variety: str, ordertype: str, quantity: int, price: float = 0, triggerprice: float = 0
     ) -> Optional[Dict]:
         """Modify an existing order.
-        
+
         Args:
             orderid: Order ID to modify
             variety: Order variety
@@ -358,14 +342,14 @@ class SmartAPIClient:
             quantity: New quantity
             price: New price
             triggerprice: New trigger price
-        
+
         Returns: Modification response or None
         """
         try:
             if not self.smart_connect:
                 logger.error("Not authenticated")
                 return None
-            
+
             # Build modify params according to AngelOne documentation
             modify_params = {
                 "variety": variety,
@@ -377,119 +361,229 @@ class SmartAPIClient:
                 "quantity": str(quantity),
                 "tradingsymbol": "",  # Not required for modify
                 "symboltoken": "",
-                "exchange": "NFO"
+                "exchange": "NFO",
             }
-            
+
             # Add triggerprice only for SL orders
-            if triggerprice > 0 and ordertype in ['STOPLOSS_LIMIT', 'STOPLOSS_MARKET']:
-                modify_params['triggerprice'] = str(triggerprice)
-            
+            if triggerprice > 0 and ordertype in ["STOPLOSS_LIMIT", "STOPLOSS_MARKET"]:
+                modify_params["triggerprice"] = str(triggerprice)
+
             response = self.smart_connect.modifyOrder(modify_params)
-            
-            if response and response.get('status'):
+
+            if response and response.get("status"):
                 logger.info(f"✓ Order {orderid} modified successfully")
-                return response['data']
+                return response["data"]
             else:
                 logger.error(f"Order modification failed: {response}")
                 return None
-                
+
         except Exception as e:
             logger.error(f"modify_order error: {e}")
             return None
-    
-    def cancel_order(self, orderid: str, variety: str = 'NORMAL') -> bool:
+
+    def cancel_order(self, orderid: str, variety: str = "NORMAL") -> bool:
         """Cancel an order.
-        
+
         Args:
             orderid: Order ID to cancel
             variety: Order variety
-        
+
         Returns: True if successful
         """
         try:
             if not self.smart_connect:
                 logger.error("Not authenticated")
                 return False
-            
-            response = self.smart_connect.cancelOrder(
-                orderid=orderid,
-                variety=variety
-            )
-            
-            if response and response.get('status'):
+
+            response = self.smart_connect.cancelOrder(orderid=orderid, variety=variety)
+
+            if response and response.get("status"):
                 logger.info(f"✓ Order {orderid} cancelled")
                 return True
             else:
                 logger.error(f"Order cancellation failed: {response}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"cancel_order error: {e}")
             return False
-    
+
     def get_order_book(self) -> Optional[List[Dict]]:
         """Get all orders for the day.
-        
+
         Returns: List of orders or None
         """
         try:
             if not self.smart_connect:
                 logger.error("Not authenticated")
                 return None
-            
+
             response = self.smart_connect.orderBook()
-            
-            if response and response.get('status'):
-                return response['data']
+
+            if response and response.get("status"):
+                return response["data"]
             return []
-            
+
         except Exception as e:
             logger.error(f"get_order_book error: {e}")
             return None
-    
+
     def get_position(self) -> Optional[Dict]:
         """Get current positions.
-        
+
         Returns: Position data or None
         """
         try:
             if not self.smart_connect:
                 logger.error("Not authenticated")
                 return None
-            
+
             response = self.smart_connect.position()
-            
-            if response and response.get('status'):
-                return response['data']
+
+            if response and response.get("status"):
+                return response["data"]
             return None
-            
+
         except Exception as e:
             logger.error(f"get_position error: {e}")
             return None
-    
+
     # ========================================================================
     # FUNDS & MARGINS
     # ========================================================================
-    
+
     def get_rms_limits(self) -> Optional[Dict]:
         """Get RMS (funds and margin) limits.
-        
+
         Returns: RMS data or None
         """
         try:
             if not self.smart_connect:
                 logger.error("Not authenticated")
                 return None
-            
+
             response = self.smart_connect.rmsLimit()
-            
-            if response and response.get('status'):
-                return response['data']
+
+            if response and response.get("status"):
+                return response["data"]
             return None
-            
+
         except Exception as e:
             logger.error(f"get_rms_limits error: {e}")
             return None
 
+    # ========================================================================
+    # INSTRUMENT MASTER
+    # ========================================================================
 
-__all__ = ['SmartAPIClient']
+    def download_instrument_master(self, exchange: str = "NFO", save_path: str = "data/instruments.csv") -> bool:
+        """Download instrument master file from AngelOne.
+
+        Args:
+            exchange: Exchange code (NFO, NSE, BSE, etc.)
+            save_path: Where to save the CSV file
+
+        Returns: True if successful
+        """
+        try:
+            import requests
+            from pathlib import Path
+
+            # AngelOne instrument master URL
+            url = f"https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
+
+            logger.info(f"Downloading instrument master for {exchange}...")
+            response = requests.get(url, timeout=30)
+
+            if response.status_code == 200:
+                # Parse JSON and filter by exchange
+                import json
+
+                instruments = json.loads(response.text)
+
+                # Filter by exchange
+                filtered = [inst for inst in instruments if inst.get("exch_seg") == exchange]
+
+                # Save to CSV
+                Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+
+                import csv
+
+                with open(save_path, "w", newline="") as f:
+                    if filtered:
+                        writer = csv.DictWriter(f, fieldnames=filtered[0].keys())
+                        writer.writeheader()
+                        writer.writerows(filtered)
+
+                logger.info(f"✓ Instrument master saved: {len(filtered)} instruments to {save_path}")
+                return True
+            else:
+                logger.error(f"Failed to download instruments: HTTP {response.status_code}")
+                return False
+
+        except Exception as e:
+            logger.error(f"download_instrument_master error: {e}")
+            return False
+
+    def load_instrument_master(self, file_path: str = "data/instruments.csv") -> Optional[Dict[str, Dict]]:
+        """Load instrument master from CSV file.
+
+        Args:
+            file_path: Path to instrument CSV
+
+        Returns: Dict mapping symbol to instrument data, or None
+        """
+        try:
+            import csv
+            from pathlib import Path
+
+            if not Path(file_path).exists():
+                logger.warning(f"Instrument file not found: {file_path}")
+                return None
+
+            instruments = {}
+            with open(file_path, "r") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    symbol = row.get("symbol") or row.get("tradingsymbol")
+                    token = row.get("token") or row.get("symboltoken")
+
+                    if symbol and token:
+                        instruments[symbol] = {
+                            "token": token,
+                            "symbol": symbol,
+                            "exchange": row.get("exch_seg", "NFO"),
+                            "name": row.get("name", ""),
+                            "expiry": row.get("expiry", ""),
+                            "strike": row.get("strike", ""),
+                            "lot_size": row.get("lotsize", "1"),
+                        }
+
+            logger.info(f"✓ Loaded {len(instruments)} instruments from {file_path}")
+            return instruments
+
+        except Exception as e:
+            logger.error(f"load_instrument_master error: {e}")
+            return None
+
+    def symbol_to_token(self, symbol: str, instruments: Dict[str, Dict]) -> Optional[str]:
+        """Convert trading symbol to exchange token.
+
+        Args:
+            symbol: Trading symbol (e.g., 'NIFTY23JAN24000CE')
+            instruments: Instrument master dict
+
+        Returns: Token string or None
+        """
+        if not instruments:
+            logger.warning("Instrument master not loaded")
+            return None
+
+        if symbol in instruments:
+            return instruments[symbol]["token"]
+
+        logger.warning(f"Symbol {symbol} not found in instrument master")
+        return None
+
+
+__all__ = ["SmartAPIClient"]

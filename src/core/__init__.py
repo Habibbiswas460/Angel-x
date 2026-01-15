@@ -9,10 +9,4 @@ from src.core.trade_manager import TradeManager
 from src.core.risk_manager import RiskManager
 from src.core.expiry_manager import ExpiryManager
 
-__all__ = [
-    "PositionSizing",
-    "OrderManager",
-    "TradeManager",
-    "RiskManager",
-    "ExpiryManager"
-]
+__all__ = ["PositionSizing", "OrderManager", "TradeManager", "RiskManager", "ExpiryManager"]

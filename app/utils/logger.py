@@ -7,13 +7,14 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Dict
 from config import config
 
 
 class StrategyLogger:
     """Centralized logging system for the trading strategy"""
     
-    _instances = {}
+    _instances: Dict[str, 'StrategyLogger'] = {}
     
     def __init__(self, name="StrategyLogger"):
         self.name = name

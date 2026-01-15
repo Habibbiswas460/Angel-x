@@ -6,13 +6,13 @@ from .straddle import StraddleStrategy, StrangleStrategy
 from .spreads import BullCallSpread, BearPutSpread, CalendarSpread, RatioSpread
 
 __all__ = [
-    'MultiLegStrategy',
-    'OptionLeg',
-    'IronCondorStrategy',
-    'StraddleStrategy',
-    'StrangleStrategy',
-    'BullCallSpread',
-    'BearPutSpread',
-    'CalendarSpread',
-    'RatioSpread',
+    "MultiLegStrategy",
+    "OptionLeg",
+    "IronCondorStrategy",
+    "StraddleStrategy",
+    "StrangleStrategy",
+    "BullCallSpread",
+    "BearPutSpread",
+    "CalendarSpread",
+    "RatioSpread",
 ]

@@ -9,17 +9,46 @@ services:
     container_name: angel-x-trading
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "${DASHBOARD_PORT:-5001}:5001"
+      - "${API_PORT:-5000}:5000"
     environment:
-      - ENVIRONMENT=production
-      - TRADING_ENABLED=false  # Set to true for live trading
-      - LOG_LEVEL=INFO
+      # Environment
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-False}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - TZ=Asia/Kolkata
-      # Broker credentials (set via .env)
-      - ANGELONE_CLIENT_CODE=${ANGELONE_CLIENT_CODE:-}
-      - ANGELONE_API_KEY=${ANGELONE_API_KEY:-}
+      
+      # Database
+      - DB_TYPE=postgresql
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=${DATABASE_NAME:-angel_x}
+      - DATABASE_USER=${DATABASE_USER:-angelx}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-changeme}
+      
+      # Redis Cache
+      - CACHE_ENABLED=${CACHE_ENABLED:-True}
+      - CACHE_TYPE=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
+      
+      # AngelOne API
+      - ANGELONE_CLIENT_CODE=${ANGELONE_CLIENT_CODE}
+      - ANGELONE_API_KEY=${ANGELONE_API_KEY}
+      - ANGELONE_PASSWORD=${ANGELONE_PASSWORD}
+      - ANGELONE_TOTP_SECRET=${ANGELONE_TOTP_SECRET}
       - ANGELONE_FEED_TOKEN=${ANGELONE_FEED_TOKEN:-}
-      # Monitoring alerts (set via .env)
+      
+      # Trading
+      - TRADING_ENABLED=${TRADING_ENABLED:-False}
+      - PAPER_TRADING=${PAPER_TRADING:-True}
+      
+      # Dashboard
+      - DASHBOARD_HOST=0.0.0.0
+      - DASHBOARD_PORT=5001
+      
+      # Monitoring
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
     volumes:
@@ -35,6 +64,8 @@ services:
       - angel-x-network
     depends_on:
       postgres:
+      redis:
+        condition: service_healthy
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
@@ -43,82 +74,80 @@ services:
       retries: 3
       start_period: 40s
 
-  # PostgreSQL Database (optional - for ML data storage)
+  # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
     container_name: angel-x-postgres
     restart: unless-stopped
     environment:
-      - POSTGRES_DB=angelx_ml
-      - POSTGRES_USER=angelx
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-angelx_secure_password}
+      - POSTGRES_DB=${DATABASE_NAME:-angel_x}
+      - POSTGRES_USER=${DATABASE_USER:-angelx}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD:-changeme}
+      - POSTGRES_INITDB_ARGS=-E UTF8
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./infra/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./infra/database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     ports:
-      - "5432:5432"
+      - "${DATABASE_PORT:-5432}:5432"
     networks:
       - angel-x-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U angelx"]
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-angelx}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Prometheus (monitoring - optional for Phase 6)
+  # Redis Cache (for market data caching and session management)
+  redis:
+    image: redis:7-alpine
+    container_name: angel-x-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-changeme}
+    volumes:
+      - redis-data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - angel-x-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s)
   prometheus:
     image: prom/prometheus:latest
     container_name: angel-x-prometheus
     restart: unless-stopped
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
     networks:
       - angel-x-network
     profiles:
       - monitoring
 
-  # Grafana (visualization - optional for Phase 6)
+  # Grafana (visualization - optional)
   grafana:
     image: grafana/grafana:latest
     container_name: angel-x-grafana
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./infra/monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infra/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infra/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
     networks:
       - angel-x-network
     profiles:
       - monitoring
-
-  # Prometheus for metrics collection (optional)
-  prometheus-monitoring:
-    image: prom/prometheus:latest
-    container_name: angel-x-prometheus
-    restart: unless-stopped
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-    networks:
-      - angel-x-network
-    profiles:
       - monitoring
     depends_on:
       - angel-x
@@ -133,3 +162,10 @@ volumes:
   postgres-data:
   prometheus-data:
   grafana-data:
+  driver: local
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local

@@ -18,12 +18,12 @@ from app.services.monitoring.alert_system import (
 )
 
 __all__ = [
-    'AlertSeverity',
-    'AlertType',
-    'Alert',
-    'AlertHandler',
-    'LogAlertHandler',
-    'WebhookAlertHandler',
-    'EmailAlertHandler',
-    'AlertSystem',
+    "AlertSeverity",
+    "AlertType",
+    "Alert",
+    "AlertHandler",
+    "LogAlertHandler",
+    "WebhookAlertHandler",
+    "EmailAlertHandler",
+    "AlertSystem",
 ]

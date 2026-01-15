@@ -30,14 +30,14 @@ from app.services.monitoring.alert_system import (
 )
 
 __all__ = [
-    'StrategyLogger',
-    'logger',
-    'AlertSystem',
-    'AlertSeverity',
-    'AlertType',
-    'Alert',
-    'AlertHandler',
-    'LogAlertHandler',
-    'WebhookAlertHandler',
-    'EmailAlertHandler',
+    "StrategyLogger",
+    "logger",
+    "AlertSystem",
+    "AlertSeverity",
+    "AlertType",
+    "Alert",
+    "AlertHandler",
+    "LogAlertHandler",
+    "WebhookAlertHandler",
+    "EmailAlertHandler",
 ]

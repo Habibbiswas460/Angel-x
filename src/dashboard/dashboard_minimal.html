@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Angel-X Minimal Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 1rem;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 28px;
+            margin-bottom: 1.5rem;
+            color: #667eea;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .metric {
+            background: #16213e;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .metric-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #999;
+            margin-bottom: 0.5rem;
+        }
+        .metric-value {
+            font-size: 32px;
+            font-weight: 700;
+        }
+        .positive { color: #10b981; }
+        .negative { color: #ef4444; }
+        .chart {
+            background: #16213e;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            height: 300px;
+        }
+        .chart-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            opacity: 0.5;
+        }
+        .table {
+            background: #16213e;
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+        th {
+            font-weight: 700;
+            color: #667eea;
+        }
+        .status { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .status.ok { background: #d1fae5; color: #10b981; }
+        .status.warn { background: #fef3c7; color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><i class="fas fa-rocket"></i> Angel-X Minimal</h1>
+        
+        <div class="grid">
+            <div class="metric">
+                <div class="metric-label">Total P&L</div>
+                <div class="metric-value positive">+₹12,450</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Open Trades</div>
+                <div class="metric-value">5</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Win Rate</div>
+                <div class="metric-value positive">72%</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Capital Used</div>
+                <div class="metric-value">45%</div>
+            </div>
+        </div>
+
+        <div class="chart">
+            <div class="chart-placeholder">📈 P&L Chart (Real-time)</div>
+        </div>
+
+        <div class="table">
+            <h3 style="margin-bottom: 1rem;">Open Positions</h3>
+            <table>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Qty</th>
+                    <th>Entry</th>
+                    <th>Current</th>
+                    <th>P&L</th>
+                </tr>
+                <tr>
+                    <td>NIFTY 28000 CE</td>
+                    <td>1</td>
+                    <td>₹125.50</td>
+                    <td>₹138.75</td>
+                    <td class="positive">+₹1,325</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="table" style="margin-top: 1rem;">
+            <h3 style="margin-bottom: 1rem;">System Status</h3>
+            <table>
+                <tr>
+                    <th>Component</th>
+                    <th>Status</th>
+                    <th>Latency</th>
+                </tr>
+                <tr>
+                    <td>Broker API</td>
+                    <td><span class="status ok">Connected</span></td>
+                    <td>45ms</td>
+                </tr>
+                <tr>
+                    <td>WebSocket</td>
+                    <td><span class="status ok">Active</span></td>
+                    <td>12ms</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Real-time updates
+        setInterval(() => {
+            const pnl = 12450 + Math.random() * 500 - 250;
+            document.querySelectorAll('.metric-value')[0].textContent = '+₹' + pnl.toFixed(0);
+        }, 1000);
+    </script>
+</body>
+</html>

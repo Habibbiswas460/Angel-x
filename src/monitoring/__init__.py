@@ -12,12 +12,12 @@ except ImportError:
     get_prometheus_metrics = None
 
 __all__ = [
-    'HealthMonitor',
-    'AlertConfig',
-    'TelegramAlerter',
-    'MetricsCollector',
-    'PrometheusMetrics',
-    'create_prometheus_blueprint',
-    'get_monitor',
-    'get_prometheus_metrics',
+    "HealthMonitor",
+    "AlertConfig",
+    "TelegramAlerter",
+    "MetricsCollector",
+    "PrometheusMetrics",
+    "create_prometheus_blueprint",
+    "get_monitor",
+    "get_prometheus_metrics",
 ]

@@ -1,0 +1,7 @@
+# Version file for Angel-X
+# Update this for each release
+
+__version__ = "2.1.0"
+__version_info__ = (2, 1, 0)
+__release_date__ = "2026-01-15"
+__status__ = "Production"

@@ -10,35 +10,32 @@ Future ML fuel
 from datetime import datetime
 from typing import List, Optional, Dict, Tuple
 from dataclasses import asdict
-from src.utils.exit_models import (
-    TradeJournalEntry, TradeContextSnapshot, ExitContextSnapshot,
-    Phase7Config
-)
+from src.utils.exit_models import TradeJournalEntry, TradeContextSnapshot, ExitContextSnapshot, Phase7Config
 import json
 
 
 class TradeJournalEngine:
     """
     Trade journal recorder and analyzer
-    
+
     Every trade recorded:
     - Entry context (price, Greeks, OI, volume)
     - Exit context (price, Greeks, P&L, duration)
     - Exit reason (signal that triggered)
     - Quality score
-    
+
     Philosophy: "You can't improve what you don't measure"
     """
-    
+
     def __init__(self, config: Optional[Phase7Config] = None):
         self.config = config or Phase7Config()
         self.trades: List[TradeJournalEntry] = []
         self.session_start: datetime = datetime.now()
-    
+
     # ====================================================================
     # STEP 1: RECORD TRADE ENTRY
     # ====================================================================
-    
+
     def create_entry_snapshot(
         self,
         entry_time: datetime,
@@ -55,7 +52,7 @@ class TradeJournalEngine:
         """
         Create entry context snapshot
         """
-        
+
         return TradeContextSnapshot(
             entry_time=entry_time,
             entry_price=entry_price,
@@ -69,11 +66,11 @@ class TradeJournalEngine:
             oi_pe_entry=pe_oi,
             volume_entry=volume_entry,
         )
-    
+
     # ====================================================================
     # STEP 2: RECORD TRADE EXIT
     # ====================================================================
-    
+
     def create_exit_snapshot(
         self,
         exit_time: datetime,
@@ -90,7 +87,7 @@ class TradeJournalEngine:
         """
         Create exit context snapshot
         """
-        
+
         return ExitContextSnapshot(
             exit_time=exit_time,
             exit_price=exit_price,
@@ -103,11 +100,11 @@ class TradeJournalEngine:
             oi_pe_exit=pe_oi_exit,
             volume_exit=quantity,
         )
-    
+
     # ====================================================================
     # STEP 3: COMPLETE TRADE RECORD
     # ====================================================================
-    
+
     def record_trade(
         self,
         entry_snapshot: TradeContextSnapshot,
@@ -118,18 +115,19 @@ class TradeJournalEngine:
         """
         Record complete trade (entry + exit + analysis)
         """
-        
+
         # Calculate P&L
         duration = (exit_snapshot.exit_time - entry_snapshot.entry_time).total_seconds()
-        
+
         if entry_snapshot.option_type == "CE":
             pnl = (exit_snapshot.exit_price - entry_snapshot.entry_price) * position_quantity
         else:  # PE
             pnl = (entry_snapshot.entry_price - exit_snapshot.exit_price) * position_quantity
-        
-        pnl_percent = (pnl / (entry_snapshot.entry_price * position_quantity)) * 100 \
-                      if entry_snapshot.entry_price != 0 else 0
-        
+
+        pnl_percent = (
+            (pnl / (entry_snapshot.entry_price * position_quantity)) * 100 if entry_snapshot.entry_price != 0 else 0
+        )
+
         trade_id = f"T{len(self.trades) + 1}"
 
         entry = TradeJournalEntry(
@@ -142,20 +140,20 @@ class TradeJournalEngine:
             pnl_percent=pnl_percent,
             duration_seconds=int(duration),
         )
-        
+
         # Add to history
         self.trades.append(entry)
-        
+
         return entry
-    
+
     # ====================================================================
     # STEP 4: TRADE QUALITY ANALYSIS
     # ====================================================================
-    
+
     def calculate_trade_quality(self, trade: TradeJournalEntry) -> Tuple[float, str]:
         """
         Score trade quality (0-100)
-        
+
         Factors:
         - Profit: Max 30 points
         - Speed: Max 20 points (fast scalp = good)
@@ -163,10 +161,10 @@ class TradeJournalEngine:
         - Execution: Max 20 points (delta, IV conditions)
         - Timing: Max 10 points
         """
-        
+
         score = 0.0
         details = []
-        
+
         # Profit score (max 30)
         if trade.pnl_percent > 1.0:
             score += 30
@@ -182,7 +180,7 @@ class TradeJournalEngine:
             details.append("Profit: Minimal (<0.2%)")
         else:
             details.append("Profit: Loss")
-        
+
         # Speed score (max 20)
         if trade.duration_seconds < 120:  # <2 mins = scalp
             score += 20
@@ -196,44 +194,43 @@ class TradeJournalEngine:
         else:
             score += 5
             details.append(f"Speed: Long hold ({trade.duration_seconds/60:.0f}m)")
-        
+
         # Risk management score (max 20)
         entry_gamma = trade.entry_greeks.get("gamma", 0)
         exit_gamma = trade.exit_greeks.get("gamma", 0)
-        
+
         if entry_gamma > 0.01:
             score += 10
             details.append("Gamma entry: Good (high)")
         elif entry_gamma > 0.005:
             score += 5
             details.append("Gamma entry: OK")
-        
+
         if exit_gamma < entry_gamma:
             score += 10
             details.append("Gamma exit: Controlled (lower)")
-        
+
         # IV management (max 10)
-        iv_diff = ((trade.exit_iv - trade.entry_iv) / trade.entry_iv) * 100 \
-                  if trade.entry_iv != 0 else 0
-        
+        iv_diff = ((trade.exit_iv - trade.entry_iv) / trade.entry_iv) * 100 if trade.entry_iv != 0 else 0
+
         if iv_diff < 0:
             score += 10
             details.append(f"IV: Crushed {abs(iv_diff):.1f}% (profit friendly)")
         elif iv_diff < 5:
             score += 5
             details.append(f"IV: Stable {iv_diff:.1f}%")
-        
+
         return min(100, score), " | ".join(details)
-    
+
     # ====================================================================
     # STEP 5: SESSION STATS
     # ====================================================================
-    
+
     def get_session_stats(self) -> Dict[str, any]:
         """
         Get session-level statistics
         """
-        
+
         if not self.trades:
             return {
                 "total_trades": 0,
@@ -242,19 +239,19 @@ class TradeJournalEngine:
                 "win_rate": 0.0,
                 "total_pnl": 0,
                 "avg_pnl_per_trade": 0,
-                "max_profit_trade": 0,
-                "max_loss_trade": 0,
-                "avg_holding_time": 0,
+                "max_profit": 0,
+                "max_loss": 0,
+                "avg_holding_time_secs": 0,
+                "avg_holding_time_formatted": "0m 0s",
                 "exit_signal_breakdown": {},
             }
-        
+
         winning = [t for t in self.trades if t.pnl_rupees > 0]
         losing = [t for t in self.trades if t.pnl_rupees <= 0]
-        
+
         total_pnl = sum(t.pnl_rupees for t in self.trades)
-        avg_time = sum(t.duration_seconds for t in self.trades) / len(self.trades) \
-                   if self.trades else 0
-        
+        avg_time = sum(t.duration_seconds for t in self.trades) / len(self.trades) if self.trades else 0
+
         # Signal breakdown
         signal_breakdown = {}
         for trade in self.trades:
@@ -263,7 +260,7 @@ class TradeJournalEngine:
                 signal_breakdown[signal] = {"count": 0, "pnl": 0}
             signal_breakdown[signal]["count"] += 1
             signal_breakdown[signal]["pnl"] += trade.pnl_rupees
-        
+
         return {
             "total_trades": len(self.trades),
             "winning_trades": len(winning),
@@ -277,14 +274,14 @@ class TradeJournalEngine:
             "avg_holding_time_formatted": f"{int(avg_time / 60)}m {int(avg_time % 60)}s",
             "exit_signal_breakdown": signal_breakdown,
         }
-    
+
     def print_session_summary(self) -> str:
         """
         Print formatted session summary
         """
-        
+
         stats = self.get_session_stats()
-        
+
         summary = f"""
 ╔═══════════════════════════════════════════════════════════════╗
 ║            PHASE 7 — TRADE JOURNAL SESSION SUMMARY             ║
@@ -307,47 +304,47 @@ class TradeJournalEngine:
   
 🎯 EXIT SIGNALS:
 """
-        
-        for signal, data in stats['exit_signal_breakdown'].items():
-            signal_pnl = data['pnl']
-            signal_count = data['count']
+
+        for signal, data in stats["exit_signal_breakdown"].items():
+            signal_pnl = data["pnl"]
+            signal_count = data["count"]
             avg_per_signal = signal_pnl / signal_count if signal_count > 0 else 0
             summary += f"  • {signal}: {signal_count} trades, ₹{signal_pnl:,.0f} total (₹{avg_per_signal:,.0f} avg)\n"
-        
+
         summary += f"\n{'═' * 63}\n"
-        
+
         return summary
-    
+
     # ====================================================================
     # STEP 6: EXPORT & PERSISTENCE
     # ====================================================================
-    
+
     def export_trades_json(self, filepath: str) -> str:
         """
         Export trades to JSON for analysis/ML
         """
-        
+
         trades_data = []
         for trade in self.trades:
             trades_data.append(asdict(trade))
-        
-        with open(filepath, 'w') as f:
+
+        with open(filepath, "w") as f:
             json.dump(trades_data, f, indent=2, default=str)
-        
+
         return f"Exported {len(self.trades)} trades to {filepath}"
-    
+
     def export_session_report(self, filepath: str) -> str:
         """
         Export session report with stats
         """
-        
+
         report = self.print_session_summary()
-        
-        with open(filepath, 'w') as f:
+
+        with open(filepath, "w") as f:
             f.write(report)
             f.write("\n\nDETAILED TRADE LIST:\n")
             f.write("=" * 80 + "\n\n")
-            
+
             for i, trade in enumerate(self.trades, 1):
                 f.write(f"Trade #{i}\n")
                 f.write(f"  Contract: {trade.contract_symbol} {trade.option_type}\n")
@@ -359,10 +356,9 @@ class TradeJournalEngine:
                 f.write(f"  Reason: {trade.exit_reason}\n")
                 f.write(f"  Quality: {self.calculate_trade_quality(trade)[1]}\n")
                 f.write("-" * 80 + "\n")
-        
+
         return f"Session report exported to {filepath}"
 
 
 # Backward compatibility alias
 TradeJournal = TradeJournalEngine
-

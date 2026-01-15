@@ -876,9 +876,19 @@ class AngelXStrategy:
         logger.info(f"Daily P&L: ₹{self.daily_pnl:.2f}")
         logger.info("="*80)
         
-        # Export summary
-        self.trade_journal.print_daily_summary()
-        self.trade_journal.export_summary_report()
+        # Print and export summary
+        summary = self.trade_journal.print_session_summary()
+        logger.info(summary)
+        
+        # Export to file
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_path = f"logs/journal/session_report_{timestamp}.txt"
+        try:
+            self.trade_journal.export_session_report(report_path)
+            logger.info(f"Session report exported to {report_path}")
+        except Exception as e:
+            logger.error(f"Failed to export session report: {e}")
 
 
 def main():

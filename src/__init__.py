@@ -17,7 +17,7 @@ from src.__version__ import (
     get_full_version,
     print_banner,
     SYSTEM_STATUS,
-    CAPABILITIES
+    CAPABILITIES,
 )
 
 __all__ = [
@@ -30,5 +30,5 @@ __all__ = [
     "get_full_version",
     "print_banner",
     "PHASE_STATUS",
-    "CAPABILITIES"
+    "CAPABILITIES",
 ]

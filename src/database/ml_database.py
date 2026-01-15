@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 try:
     import psycopg2
     from psycopg2.extras import execute_values
+
     POSTGRES_AVAILABLE = True
 except ImportError:
     POSTGRES_AVAILABLE = False
@@ -24,6 +25,7 @@ except ImportError:
 
 class DataCategory(Enum):
     """Data category types for ML training"""
+
     MARKET_TICK = "market_tick"
     GREEKS_SNAPSHOT = "greeks_snapshot"
     TRADE_ENTRY = "trade_entry"
@@ -35,12 +37,13 @@ class DataCategory(Enum):
 @dataclass
 class DatabaseConfig:
     """Database connection configuration"""
+
     host: str = "localhost"
     port: int = 5432
     database: str = "angelx_ml"
     user: str = "angelx"
     password: str = ""
-    
+
     # Performance tuning
     connection_pool_size: int = 5
     batch_size: int = 100  # Batch inserts for performance
@@ -50,7 +53,7 @@ class DatabaseConfig:
 class MLDatabaseSchema:
     """
     SQL schema for ML data collection
-    
+
     Tables:
     - market_ticks: Real-time price/volume data
     - greeks_snapshots: Greeks evolution over time
@@ -58,7 +61,7 @@ class MLDatabaseSchema:
     - bias_history: Market bias changes
     - oi_changes: Open interest tracking
     """
-    
+
     CREATE_TABLES_SQL = """
     -- Market ticks (LTP, volume, bid/ask)
     CREATE TABLE IF NOT EXISTS market_ticks (
@@ -182,38 +185,38 @@ class MLDatabaseSchema:
 class MLDatabase:
     """
     ML Database interface for ANGEL-X
-    
+
     Features:
     - Async batch writing for performance
     - Automatic schema creation
     - Query helpers for ML data extraction
     """
-    
+
     def __init__(self, config: Optional[DatabaseConfig] = None):
         self.config = config or DatabaseConfig()
         self.conn = None
         self.batch_buffer = {cat: [] for cat in DataCategory}
-        
+
         if not POSTGRES_AVAILABLE:
             logger.warning("PostgreSQL not available - running in no-op mode")
             self.enabled = False
             return
-        
+
         self.enabled = True
         logger.info(f"MLDatabase initialized (host={self.config.host})")
-    
+
     def connect(self) -> bool:
         """Connect to PostgreSQL database"""
         if not self.enabled:
             return False
-        
+
         try:
             self.conn = psycopg2.connect(
                 host=self.config.host,
                 port=self.config.port,
                 database=self.config.database,
                 user=self.config.user,
-                password=self.config.password
+                password=self.config.password,
             )
             logger.info("✓ Connected to ML database")
             return True
@@ -221,12 +224,12 @@ class MLDatabase:
             logger.error(f"Database connection failed: {e}")
             self.enabled = False
             return False
-    
+
     def create_schema(self):
         """Create database schema"""
         if not self.enabled or not self.conn:
             return
-        
+
         try:
             cursor = self.conn.cursor()
             cursor.execute(MLDatabaseSchema.CREATE_TABLES_SQL)
@@ -234,7 +237,7 @@ class MLDatabase:
             logger.info("✓ Database schema created/verified")
         except Exception as e:
             logger.error(f"Schema creation failed: {e}")
-    
+
     def insert_market_tick(
         self,
         timestamp: datetime,
@@ -243,28 +246,28 @@ class MLDatabase:
         bid: Optional[float] = None,
         ask: Optional[float] = None,
         volume: Optional[int] = None,
-        oi: Optional[int] = None
+        oi: Optional[int] = None,
     ):
         """Insert market tick data"""
         if not self.enabled:
             return
-        
+
         data = {
-            'timestamp': timestamp,
-            'symbol': symbol,
-            'ltp': ltp,
-            'bid': bid,
-            'ask': ask,
-            'volume': volume,
-            'oi': oi
+            "timestamp": timestamp,
+            "symbol": symbol,
+            "ltp": ltp,
+            "bid": bid,
+            "ask": ask,
+            "volume": volume,
+            "oi": oi,
         }
-        
+
         self.batch_buffer[DataCategory.MARKET_TICK].append(data)
-        
+
         # Flush if batch full
         if len(self.batch_buffer[DataCategory.MARKET_TICK]) >= self.config.batch_size:
             self._flush_batch(DataCategory.MARKET_TICK)
-    
+
     def insert_greeks_snapshot(
         self,
         timestamp: datetime,
@@ -280,39 +283,39 @@ class MLDatabase:
         vega: float,
         iv: float,
         oi: int,
-        volume: int
+        volume: int,
     ):
         """Insert Greeks snapshot"""
         if not self.enabled:
             return
-        
+
         data = {
-            'timestamp': timestamp,
-            'symbol': symbol,
-            'underlying': underlying,
-            'strike': strike,
-            'option_type': option_type,
-            'expiry_date': expiry_date,
-            'ltp': ltp,
-            'delta': delta,
-            'gamma': gamma,
-            'theta': theta,
-            'vega': vega,
-            'iv': iv,
-            'oi': oi,
-            'volume': volume
+            "timestamp": timestamp,
+            "symbol": symbol,
+            "underlying": underlying,
+            "strike": strike,
+            "option_type": option_type,
+            "expiry_date": expiry_date,
+            "ltp": ltp,
+            "delta": delta,
+            "gamma": gamma,
+            "theta": theta,
+            "vega": vega,
+            "iv": iv,
+            "oi": oi,
+            "volume": volume,
         }
-        
+
         self.batch_buffer[DataCategory.GREEKS_SNAPSHOT].append(data)
-        
+
         if len(self.batch_buffer[DataCategory.GREEKS_SNAPSHOT]) >= self.config.batch_size:
             self._flush_batch(DataCategory.GREEKS_SNAPSHOT)
-    
+
     def insert_trade(self, trade_data: Dict[str, Any]):
         """Insert complete trade record"""
         if not self.enabled or not self.conn:
             return
-        
+
         try:
             cursor = self.conn.cursor()
             query = """
@@ -337,31 +340,29 @@ class MLDatabase:
             logger.debug(f"Trade {trade_data['trade_id']} saved to database")
         except Exception as e:
             logger.error(f"Trade insert failed: {e}")
-    
+
     def _flush_batch(self, category: DataCategory):
         """Flush batched inserts"""
         if not self.enabled or not self.conn:
             return
-        
+
         batch = self.batch_buffer[category]
         if not batch:
             return
-        
+
         try:
             cursor = self.conn.cursor()
-            
+
             if category == DataCategory.MARKET_TICK:
                 query = """
                     INSERT INTO market_ticks (timestamp, symbol, ltp, bid, ask, volume, oi)
                     VALUES %s
                 """
                 values = [
-                    (d['timestamp'], d['symbol'], d['ltp'], d['bid'], d['ask'], 
-                     d['volume'], d['oi'])
-                    for d in batch
+                    (d["timestamp"], d["symbol"], d["ltp"], d["bid"], d["ask"], d["volume"], d["oi"]) for d in batch
                 ]
                 execute_values(cursor, query, values)
-            
+
             elif category == DataCategory.GREEKS_SNAPSHOT:
                 query = """
                     INSERT INTO greeks_snapshots 
@@ -370,42 +371,50 @@ class MLDatabase:
                     VALUES %s
                 """
                 values = [
-                    (d['timestamp'], d['symbol'], d['underlying'], d['strike'], 
-                     d['option_type'], d['expiry_date'], d['ltp'], d['delta'], 
-                     d['gamma'], d['theta'], d['vega'], d['iv'], d['oi'], d['volume'])
+                    (
+                        d["timestamp"],
+                        d["symbol"],
+                        d["underlying"],
+                        d["strike"],
+                        d["option_type"],
+                        d["expiry_date"],
+                        d["ltp"],
+                        d["delta"],
+                        d["gamma"],
+                        d["theta"],
+                        d["vega"],
+                        d["iv"],
+                        d["oi"],
+                        d["volume"],
+                    )
                     for d in batch
                 ]
                 execute_values(cursor, query, values)
-            
+
             self.conn.commit()
             logger.debug(f"Flushed {len(batch)} {category.value} records")
-            
+
             # Clear batch
             self.batch_buffer[category] = []
-            
+
         except Exception as e:
             logger.error(f"Batch flush failed for {category.value}: {e}")
-    
+
     def flush_all(self):
         """Flush all pending batches"""
         for category in DataCategory:
             self._flush_batch(category)
-    
-    def query_ml_dataset(
-        self,
-        start_date: datetime,
-        end_date: datetime,
-        underlying: str = 'NIFTY'
-    ) -> List[Dict]:
+
+    def query_ml_dataset(self, start_date: datetime, end_date: datetime, underlying: str = "NIFTY") -> List[Dict]:
         """
         Query complete ML dataset for training
-        
+
         Returns:
             List of dicts with features + labels
         """
         if not self.enabled or not self.conn:
             return []
-        
+
         try:
             cursor = self.conn.cursor()
             query = """
@@ -433,17 +442,17 @@ class MLDatabase:
                 ORDER BY t.entry_time
             """
             cursor.execute(query, (start_date, end_date, underlying))
-            
+
             columns = [desc[0] for desc in cursor.description]
             results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            
+
             logger.info(f"Fetched {len(results)} ML training records")
             return results
-            
+
         except Exception as e:
             logger.error(f"ML dataset query failed: {e}")
             return []
-    
+
     def close(self):
         """Close database connection"""
         if self.conn:

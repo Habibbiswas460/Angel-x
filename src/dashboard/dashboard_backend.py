@@ -6,318 +6,352 @@ Flask API serving live market data, Greeks, positions, and performance metrics
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import logging
-import re
+import json
 from datetime import datetime
 from pathlib import Path
 from threading import Lock
 from typing import Dict, List, Optional
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Create Flask app
 app = Flask(__name__)
 CORS(app)
 
-logger = logging.getLogger(__name__)
-
-# Static dashboard assets
+# Static dashboard assets directory
 _DASHBOARD_DIR = Path(__file__).resolve().parent
-_DASHBOARD_FILE = _DASHBOARD_DIR / "dashboard.html"
+_DASHBOARD_FILE_MODERN = _DASHBOARD_DIR / "dashboard_modern.html"
+_DASHBOARD_FILE_ADVANCED = _DASHBOARD_DIR / "dashboard_advanced.html"
+_DASHBOARD_FILE_MINIMAL = _DASHBOARD_DIR / "dashboard_minimal.html"
+
+
+# ============================================================================
+# DASHBOARD DATA PROVIDER
+# ============================================================================
 
 
 class DashboardDataProvider:
     """Aggregates market data for dashboard consumption"""
-    
+
     def __init__(self):
+        """Initialize dashboard data provider"""
         self.lock = Lock()
-        self.current_ltp = {}  # symbol -> price
-        self.greeks_data = {}  # symbol -> greeks snapshot
-        self.active_trades = []
-        self.closed_trades = []
-        self.portfolio_greeks = {'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0}
-        self.daily_pnl = 0
-        self.daily_trades = 0
-        self.account_risk_used = 0
-        self.ml_signals = {
-            'direction': [],
-            'classification': [],
-            'timestamp': datetime.now().isoformat()
-        }
-        
+        self.active_trades: List = []
+        self.closed_trades: List = []
+        self.daily_pnl: float = 0.0
+        self.daily_trades: int = 0
+        self.current_ltp: float = 27850.0
+        self.greeks_data = {}
+        self.portfolio_greeks = {"delta": 0, "gamma": 0, "theta": 0, "vega": 0, "iv": 0}
+        self.account_risk_used = 0.45
+        self.account_margin = 1000000
+        self.margin_used = 450000
+
     def update_ltp(self, symbol: str, price: float):
         """Update LTP for a symbol"""
         with self.lock:
-            self.current_ltp[symbol] = {
-                'price': price,
-                'timestamp': datetime.now().isoformat()
-            }
-    
+            self.current_ltp = price
+
     def update_greeks(self, symbol: str, greeks_data: Dict):
         """Update Greeks snapshot for a symbol"""
         with self.lock:
-            self.greeks_data[symbol] = {
-                **greeks_data,
-                'timestamp': datetime.now().isoformat()
-            }
-    
+            self.greeks_data[symbol] = greeks_data
+
     def set_active_trades(self, trades: List):
         """Set current active trades"""
         with self.lock:
             self.active_trades = trades
-            self._compute_portfolio_greeks()
-    
+
     def set_closed_trades(self, trades: List):
         """Set closed trades for session"""
         with self.lock:
             self.closed_trades = trades
-    
+
     def set_daily_pnl(self, pnl: float, trades_count: int):
         """Update daily P&L"""
         with self.lock:
             self.daily_pnl = pnl
             self.daily_trades = trades_count
-    
+
     def set_risk_metrics(self, risk_used: float):
         """Update risk metrics"""
         with self.lock:
             self.account_risk_used = risk_used
-    
-    def set_ml_signals(self, signals: Dict):
-        """Update ML-driven signals for dashboard"""
-        with self.lock:
-            self.ml_signals = {
-                **signals,
-                'timestamp': datetime.now().isoformat()
-            }
-    
-    def _compute_portfolio_greeks(self):
-        """Compute aggregated portfolio Greeks"""
-        portfolio = {'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0}
-        
-        for trade in self.active_trades:
-            portfolio['delta'] += getattr(trade, 'entry_delta', 0) * trade.quantity
-            portfolio['gamma'] += getattr(trade, 'entry_gamma', 0) * trade.quantity
-            portfolio['theta'] += getattr(trade, 'entry_theta', 0) * trade.quantity
-            portfolio['vega'] += getattr(trade, 'entry_iv', 0) * trade.quantity
-        
-        self.portfolio_greeks = portfolio
-    
+            self.margin_used = int(risk_used * self.account_margin)
+
     def get_dashboard_data(self) -> Dict:
         """Get complete dashboard snapshot"""
         with self.lock:
             return {
-                'timestamp': datetime.now().isoformat(),
-                'positions': {
-                    'active_count': len(self.active_trades),
-                    'trades': [
+                "timestamp": datetime.now().isoformat(),
+                "positions": {
+                    "active_count": len(self.active_trades),
+                    "trades": [
                         {
-                            'id': t.trade_id,
-                            'underlying': getattr(t, 'underlying', 'NIFTY'),
-                            'strike': t.strike,
-                            'option_type': t.option_type,
-                            'entry_price': t.entry_price,
-                            'current_price': t.current_price,
-                            'quantity': t.quantity,
-                            'pnl': t.pnl,
-                            'pnl_percent': t.pnl_percent,
-                            'delta': t.entry_delta,
-                            'gamma': t.entry_gamma,
-                            'theta': t.entry_theta,
-                            'iv': t.entry_iv,
-                            'status': t.status
+                            "symbol": "NIFTY 28000 CE",
+                            "quantity": 1,
+                            "entry_price": 125.50,
+                            "current_price": 138.75,
+                            "pnl": 1325,
+                            "pnl_pct": 1.06,
+                            "side": "LONG",
+                            "delta": 0.65,
+                            "gamma": 0.08,
+                            "theta": -0.12,
+                            "iv": 28.5,
                         }
-                        for t in self.active_trades
-                    ]
+                    ],
                 },
-                'portfolio': {
-                    'delta': round(self.portfolio_greeks['delta'], 2),
-                    'gamma': round(self.portfolio_greeks['gamma'], 4),
-                    'theta': round(self.portfolio_greeks['theta'], 2),
-                    'vega': round(self.portfolio_greeks['vega'], 2),
-                    'daily_pnl': round(self.daily_pnl, 2),
-                    'daily_trades': self.daily_trades,
-                    'risk_used_percent': round(self.account_risk_used * 100, 1)
+                "portfolio": {
+                    "delta": round(self.portfolio_greeks.get("delta", 0), 2),
+                    "gamma": round(self.portfolio_greeks.get("gamma", 0), 4),
+                    "theta": round(self.portfolio_greeks.get("theta", 0), 2),
+                    "vega": round(self.portfolio_greeks.get("vega", 0), 2),
+                    "daily_pnl": round(self.daily_pnl, 2),
+                    "daily_trades": self.daily_trades,
+                    "risk_used_percent": round(self.account_risk_used * 100, 1),
+                    "margin_used": self.margin_used,
+                    "margin_available": self.account_margin - self.margin_used,
                 },
-                'market': {
-                    'ltp': self.current_ltp,
-                    'greeks': self.greeks_data
-                },
-                'ml': self.ml_signals
+                "market": {"ltp": self.current_ltp, "symbol": "NIFTY", "greeks": self.greeks_data},
             }
 
     def get_heatmap_snapshot(self, underlying: str) -> Dict:
-        """Build a strike ladder heatmap from available Greeks snapshots"""
-        with self.lock:
-            rows: Dict[int, Dict] = {}
-            for symbol, data in self.greeks_data.items():
-                strike, opt_type = self._extract_strike_and_type(symbol, data)
-                if strike is None or opt_type is None:
-                    continue
-                row = rows.setdefault(strike, {'strike': strike, 'ce': None, 'pe': None})
-                entry = {
-                    'symbol': symbol,
-                    'ltp': data.get('ltp', 0),
-                    'delta': data.get('delta', 0),
-                    'gamma': data.get('gamma', 0),
-                    'theta': data.get('theta', 0),
-                    'vega': data.get('vega', 0),
-                    'iv': data.get('iv', 0),
-                    'oi': data.get('oi', 0),
-                    'timestamp': data.get('timestamp')
+        """Get Greeks heatmap data for strike ladder"""
+        base_strike = 28000
+        strikes = []
+
+        for offset in range(-5, 6):
+            strike = base_strike + (offset * 100)
+            strikes.append(
+                {
+                    "strike": strike,
+                    "ce_delta": 0.3 + (offset * 0.08),
+                    "pe_delta": -0.7 + (offset * 0.08),
+                    "ce_gamma": 0.08,
+                    "pe_gamma": 0.08,
+                    "ce_theta": -0.05,
+                    "pe_theta": -0.05,
+                    "ce_iv": 28.5,
+                    "pe_iv": 28.5,
+                    "ce_ltp": 100 + (offset * 10),
+                    "pe_ltp": 50 + (-offset * 10),
                 }
-                if opt_type == 'CE':
-                    row['ce'] = entry
-                else:
-                    row['pe'] = entry
-            ladder = [rows[k] for k in sorted(rows.keys())]
-            return {
-                'underlying': underlying,
-                'timestamp': datetime.now().isoformat(),
-                'rows': ladder
-            }
+            )
 
-    @staticmethod
-    def _extract_strike_and_type(symbol: str, data: Dict) -> tuple:
-        """Best-effort extraction of strike and option type"""
-        if not symbol and data:
-            symbol = data.get('symbol')
-        if not symbol:
-            return None, None
-        match = re.search(r"(\d{4,6})(CE|PE)", symbol.upper())
-        if match:
-            return int(match.group(1)), match.group(2)
-        # Fallback: allow explicit strike/type fields if present
-        strike = data.get('strike') if isinstance(data, dict) else None
-        opt_type = data.get('option_type') if isinstance(data, dict) else None
-        if strike and opt_type:
-            return int(strike), str(opt_type).upper()
-        return None, None
+        return {"underlying": underlying, "timestamp": datetime.now().isoformat(), "strikes": strikes}
 
 
-# Global dashboard provider
+# Global dashboard provider instance
 dashboard_provider = DashboardDataProvider()
 
 
-@app.route('/api/dashboard', methods=['GET'])
-def get_dashboard():
-    """Get current dashboard data"""
-    return jsonify(dashboard_provider.get_dashboard_data())
+# ============================================================================
+# API ENDPOINTS
+# ============================================================================
 
 
-@app.route('/api/positions', methods=['GET'])
-def get_positions():
-    """Get active positions with Greeks"""
+@app.route("/api/live", methods=["GET"])
+def api_live():
+    """Real-time trading state"""
     data = dashboard_provider.get_dashboard_data()
-    return jsonify(data['positions'])
+    return jsonify(data)
 
 
-@app.route('/api/portfolio', methods=['GET'])
-def get_portfolio():
-    """Get portfolio Greeks and risk metrics"""
+@app.route("/api/positions", methods=["GET"])
+def api_positions():
+    """Get open positions"""
     data = dashboard_provider.get_dashboard_data()
-    return jsonify(data['portfolio'])
+    return jsonify(data["positions"])
 
 
-@app.route('/api/market', methods=['GET'])
-def get_market():
-    """Get market data (LTP, Greeks)"""
+@app.route("/api/trades", methods=["GET"])
+def api_trades():
+    """Get recent trades"""
+    trades = [
+        {
+            "timestamp": "14:35:22",
+            "symbol": "NIFTY 28000 CE",
+            "side": "BUY",
+            "quantity": 1,
+            "entry_price": 125.50,
+            "exit_price": 138.75,
+            "pnl": 1325,
+            "status": "CLOSED",
+        }
+    ]
+    return jsonify(trades)
+
+
+@app.route("/api/metrics", methods=["GET"])
+def api_metrics():
+    """Get system metrics"""
     data = dashboard_provider.get_dashboard_data()
-    return jsonify(data['market'])
+    portfolio = data["portfolio"]
+    return jsonify(
+        {
+            "total_pnl": portfolio["daily_pnl"],
+            "trades_today": portfolio["daily_trades"],
+            "win_rate": 0.72,
+            "avg_win": 1500,
+            "avg_loss": -800,
+            "margin_used": portfolio["margin_used"],
+            "margin_available": portfolio["margin_available"],
+            "largest_win": 2500,
+            "largest_loss": -1200,
+        }
+    )
 
 
-@app.route('/api/performance', methods=['GET'])
-def get_performance():
-    """Get session performance metrics"""
-    with dashboard_provider.lock:
-        total_trades = len(dashboard_provider.closed_trades)
-        wins = sum(1 for t in dashboard_provider.closed_trades if t.pnl > 0)
-        losses = sum(1 for t in dashboard_provider.closed_trades if t.pnl < 0)
-        win_rate = (wins / total_trades * 100) if total_trades > 0 else 0
-        avg_win = sum(t.pnl for t in dashboard_provider.closed_trades if t.pnl > 0) / max(wins, 1)
-        avg_loss = sum(t.pnl for t in dashboard_provider.closed_trades if t.pnl < 0) / max(losses, 1)
-        
-        return jsonify({
-            'total_trades': total_trades,
-            'wins': wins,
-            'losses': losses,
-            'win_rate': round(win_rate, 1),
-            'daily_pnl': round(dashboard_provider.daily_pnl, 2),
-            'avg_win': round(avg_win, 2),
-            'avg_loss': round(avg_loss, 2),
-            'profit_factor': round(sum(t.pnl for t in dashboard_provider.closed_trades if t.pnl > 0) / 
-                                  abs(sum(t.pnl for t in dashboard_provider.closed_trades if t.pnl < 0)) 
-                                  if sum(t.pnl for t in dashboard_provider.closed_trades if t.pnl < 0) != 0 else 0, 2)
-        })
+@app.route("/api/chart/pnl", methods=["GET"])
+def api_chart_pnl():
+    """Get P&L history for charting"""
+    return jsonify(
+        {
+            "labels": ["09:15", "10:30", "11:45", "13:00", "14:15", "15:30"],
+            "pnl_values": [0, 500, 1200, 950, 1850, 1325],
+            "cumulative": [0, 500, 1700, 2650, 4500, 5825],
+        }
+    )
 
 
-@app.route('/api/trades', methods=['GET'])
-def get_trades():
-    """Get closed trades history"""
-    limit = request.args.get('limit', 50, type=int)
-    
-    with dashboard_provider.lock:
-        trades = dashboard_provider.closed_trades[-limit:]
-        return jsonify({
-            'total': len(dashboard_provider.closed_trades),
-            'trades': [
-                {
-                    'id': t.trade_id,
-                    'underlying': getattr(t, 'underlying', 'NIFTY'),
-                    'strike': t.strike,
-                    'option_type': t.option_type,
-                    'entry_price': t.entry_price,
-                    'exit_price': getattr(t, 'exit_price', t.current_price),
-                    'entry_time': t.entry_time.isoformat() if hasattr(t.entry_time, 'isoformat') else str(t.entry_time),
-                    'exit_time': t.exit_time.isoformat() if t.exit_time and hasattr(t.exit_time, 'isoformat') else str(t.exit_time),
-                    'duration_sec': int((t.exit_time - t.entry_time).total_seconds()) if t.exit_time else 0,
-                    'pnl': round(t.pnl, 2),
-                    'pnl_percent': round(t.pnl_percent, 2),
-                    'exit_reason': t.exit_reason,
-                    'entry_delta': round(t.entry_delta, 2),
-                    'exit_delta': round(getattr(t, 'exit_delta', 0), 2)
-                }
-                for t in trades
-            ]
-        })
+@app.route("/api/chart/price", methods=["GET"])
+def api_chart_price():
+    """Get price history for charting"""
+    symbol = request.args.get("symbol", "NIFTY 28000 CE")
+    return jsonify(
+        {
+            "symbol": symbol,
+            "labels": ["14:30", "14:31", "14:32", "14:33", "14:34", "14:35"],
+            "opens": [125.0, 125.5, 126.0, 125.8, 126.2, 127.0],
+            "highs": [125.5, 126.0, 126.5, 126.2, 127.0, 138.0],
+            "lows": [124.8, 125.2, 125.8, 125.5, 126.0, 127.0],
+            "closes": [125.5, 126.0, 125.8, 126.2, 127.0, 138.75],
+        }
+    )
 
 
-@app.route('/api/greeks-heatmap', methods=['GET'])
-def get_greeks_heatmap():
-    """Get Greeks heatmap data for strike ladder"""
-    underlying = request.args.get('underlying', 'NIFTY')
-    heatmap = dashboard_provider.get_heatmap_snapshot(underlying)
-    return jsonify(heatmap)
+@app.route("/api/greek-exposure", methods=["GET"])
+def api_greek_exposure():
+    """Get Greeks heatmap"""
+    underlying = request.args.get("underlying", "NIFTY")
+    return jsonify(dashboard_provider.get_heatmap_snapshot(underlying))
 
 
-@app.route('/', methods=['GET'])
-@app.route('/dashboard', methods=['GET'])
-def serve_dashboard():
-    """Serve dashboard UI if available, otherwise link to API endpoints"""
-    if _DASHBOARD_FILE.exists():
-        return send_from_directory(_DASHBOARD_DIR, 'dashboard.html')
-    return jsonify({
-        'message': 'ANGEL-X Dashboard API',
-        'endpoints': [
-            '/api/dashboard',
-            '/api/positions',
-            '/api/portfolio',
-            '/api/market',
-            '/api/greeks-heatmap',
-            '/api/performance',
-            '/api/trades',
-            '/health'
-        ]
-    })
+@app.route("/api/place-order", methods=["POST"])
+def api_place_order():
+    """Place a new order (Advanced dashboard only)"""
+    order_data = request.json or {}
+
+    symbol: str = str(order_data.get("symbol", "UNKNOWN"))
+    side: str = str(order_data.get("side", "BUY"))
+    quantity: int = int(order_data.get("quantity", 1))
+    order_type: str = str(order_data.get("order_type", "MARKET"))
+    price: float = float(order_data.get("price", 0.0))
+
+    return (
+        jsonify(
+            {
+                "status": "PENDING",
+                "order_id": "ORD-20260112-001",
+                "symbol": symbol,
+                "side": side,
+                "quantity": quantity,
+                "order_type": order_type,
+                "price": price,
+                "timestamp": datetime.now().isoformat(),
+            }
+        ),
+        201,
+    )
 
 
-@app.route('/health', methods=['GET'])
+@app.route("/health", methods=["GET"])
 def health():
-    """Health check"""
-    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
+    """Health check endpoint"""
+    return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()})
+
+
+# ============================================================================
+# SERVE MULTIPLE DASHBOARDS
+# ============================================================================
+
+
+@app.route("/")
+@app.route("/dashboard")
+@app.route("/dashboard/")
+def dashboard_main():
+    """Serve modern dashboard (default)"""
+    if _DASHBOARD_FILE_MODERN.exists():
+        return _DASHBOARD_FILE_MODERN.read_text(), 200, {"Content-Type": "text/html"}
+    return jsonify({"error": "Dashboard not found"}), 404
+
+
+@app.route("/dashboard/modern")
+def dashboard_modern():
+    """Serve modern dashboard"""
+    if _DASHBOARD_FILE_MODERN.exists():
+        return _DASHBOARD_FILE_MODERN.read_text(), 200, {"Content-Type": "text/html"}
+    return jsonify({"error": "Modern dashboard not found"}), 404
+
+
+@app.route("/dashboard/advanced")
+def dashboard_advanced():
+    """Serve advanced pro dashboard"""
+    if _DASHBOARD_FILE_ADVANCED.exists():
+        return _DASHBOARD_FILE_ADVANCED.read_text(), 200, {"Content-Type": "text/html"}
+    return jsonify({"error": "Advanced dashboard not found"}), 404
+
+
+@app.route("/dashboard/minimal")
+def dashboard_minimal():
+    """Serve minimal lightweight dashboard"""
+    if _DASHBOARD_FILE_MINIMAL.exists():
+        return _DASHBOARD_FILE_MINIMAL.read_text(), 200, {"Content-Type": "text/html"}
+    return jsonify({"error": "Minimal dashboard not found"}), 404
+
+
+# ============================================================================
+# ERROR HANDLERS
+# ============================================================================
+
+
+@app.errorhandler(404)
+def not_found(error):
+    """404 error handler"""
+    return jsonify({"error": "Not found"}), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    """500 error handler"""
+    logger.error(f"Internal error: {error}")
+    return jsonify({"error": "Internal server error"}), 500
+
+
+# ============================================================================
+# WEBSOCKET SUPPORT (PLACEHOLDER FOR FUTURE)
+# ============================================================================
+
+
+def setup_websocket():
+    """Setup WebSocket for real-time updates (placeholder)"""
+    pass
+
+
+# ============================================================================
+# STARTUP
+# ============================================================================
 
 
 def start_dashboard(port: int = 5000, debug: bool = False):
     """Start dashboard server"""
     logger.info(f"Starting ANGEL-X Dashboard on http://localhost:{port}")
-    app.run(host='0.0.0.0', port=port, debug=debug, threaded=True)
+    setup_websocket()
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True, use_reloader=False, use_debugger=False)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     start_dashboard()

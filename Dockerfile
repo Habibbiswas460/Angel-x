@@ -33,7 +33,7 @@ FROM python:3.12-slim
 # Metadata
 LABEL maintainer="Angel-X Trading System"
 LABEL description="Options trading system with AngelOne integration"
-LABEL version="1.0.0"
+LABEL version="2.1.0"
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \

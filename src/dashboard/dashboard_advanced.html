@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Angel-X Pro Dashboard</title>
+    
+    <!-- TradingView Lightweight Charts -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    
+    <!-- Chart.js for advanced charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #667eea;
+            --primary-dark: #5568d3;
+            --primary-light: #f0f4ff;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --dark: #1f2937;
+            --light: #f9fafb;
+            --border: #e5e7eb;
+            --bg-card: rgba(255, 255, 255, 0.95);
+            --bg-dark: #0f172a;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: var(--dark);
+            line-height: 1.6;
+        }
+
+        /* ============================================================================
+           HEADER
+           ============================================================================ */
+        header {
+            background: var(--bg-card);
+            border-bottom: 2px solid var(--primary);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .header-content {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 8px 16px;
+            background: #d1fae5;
+            color: var(--success);
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        /* ============================================================================
+           LIVE TICKER
+           ============================================================================ */
+        .live-ticker {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+
+        .ticker-item {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: var(--shadow-md);
+        }
+
+        .ticker-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #9ca3af;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .ticker-value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .ticker-change {
+            font-size: 12px;
+            margin-top: 0.5rem;
+            font-weight: 600;
+        }
+
+        .ticker-change.positive {
+            color: var(--success);
+        }
+
+        .ticker-change.negative {
+            color: var(--danger);
+        }
+
+        /* ============================================================================
+           MAIN LAYOUT
+           ============================================================================ */
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 0 2rem 2rem 2rem;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .grid-full {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        /* ============================================================================
+           CARDS
+           ============================================================================ */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-md);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: var(--primary);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--primary-light);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .card-title i {
+            color: var(--primary);
+            font-size: 20px;
+        }
+
+        .card-action {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-icon {
+            background: var(--primary-light);
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            color: var(--primary);
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-icon:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* ============================================================================
+           TRADING PANEL
+           ============================================================================ */
+        .order-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .order-input {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .order-input label {
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #6b7280;
+        }
+
+        .order-input input,
+        .order-input select {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .order-input input:focus,
+        .order-input select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+
+        .order-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .btn-buy {
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-buy:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn-sell {
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-sell:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* ============================================================================
+           CHARTS
+           ============================================================================ */
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 1rem;
+            background: #f9fafb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .lightweight-chart {
+            height: 100%;
+        }
+
+        .heatmap-container {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .heatmap-cell {
+            background: var(--primary-light);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            border: 2px solid var(--primary-light);
+            transition: all 0.2s;
+        }
+
+        .heatmap-cell.positive {
+            background: #d1fae5;
+            border-color: var(--success);
+        }
+
+        .heatmap-cell.negative {
+            background: #fee2e2;
+            border-color: var(--danger);
+        }
+
+        .heatmap-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .heatmap-value {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        /* ============================================================================
+           TABLES
+           ============================================================================ */
+        .table-responsive {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            background: var(--primary-light);
+        }
+
+        th {
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        td {
+            padding: 12px 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tbody tr:hover {
+            background: #f3f4f6;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.success {
+            background: #d1fae5;
+            color: var(--success);
+        }
+
+        .badge.danger {
+            background: #fee2e2;
+            color: var(--danger);
+        }
+
+        .badge.info {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        /* ============================================================================
+           REAL-TIME UPDATES
+           ============================================================================ */
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .animate-in {
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ============================================================================
+           RESPONSIVE
+           ============================================================================ */
+        @media (max-width: 1024px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-3 {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 1rem 1rem 1rem;
+            }
+
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+
+            .live-ticker {
+                grid-template-columns: repeat(2, 1fr);
+                padding: 0.75rem 1rem;
+                gap: 0.75rem;
+            }
+
+            .order-panel {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-3 {
+                grid-template-columns: 1fr;
+            }
+
+            .chart-container {
+                height: 250px;
+            }
+
+            .heatmap-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ======================================================================== -->
+    <!-- HEADER -->
+    <!-- ======================================================================== -->
+    <header>
+        <div class="header-content">
+            <div class="logo">
+                <i class="fas fa-rocket"></i> Angel-X Pro
+            </div>
+            <div class="status-badge">
+                <span class="pulse">●</span>
+                Live Trading
+            </div>
+        </div>
+    </header>
+
+    <!-- ======================================================================== -->
+    <!-- LIVE TICKER -->
+    <!-- ======================================================================== -->
+    <div class="live-ticker">
+        <div class="ticker-item">
+            <div class="ticker-label">NIFTY LTP</div>
+            <div class="ticker-value" id="nifty-ltp">27,850</div>
+            <div class="ticker-change positive" id="nifty-change">+125 (+0.45%)</div>
+        </div>
+        <div class="ticker-item">
+            <div class="ticker-label">Total P&L</div>
+            <div class="ticker-value positive" id="total-pnl">+₹12,450</div>
+            <div class="ticker-change positive" id="pnl-change">Today: +4.2%</div>
+        </div>
+        <div class="ticker-item">
+            <div class="ticker-label">Open Positions</div>
+            <div class="ticker-value" id="open-positions">5</div>
+            <div class="ticker-change" id="position-delta">Net Δ: +0.45</div>
+        </div>
+        <div class="ticker-item">
+            <div class="ticker-label">Win Rate</div>
+            <div class="ticker-value positive" id="win-rate">72%</div>
+            <div class="ticker-change positive" id="win-count">18 Wins / 7 Losses</div>
+        </div>
+        <div class="ticker-item">
+            <div class="ticker-label">Capital Usage</div>
+            <div class="ticker-value" id="margin-used">₹45,000</div>
+            <div class="ticker-change" id="margin-pct">45% utilized</div>
+        </div>
+    </div>
+
+    <!-- ======================================================================== -->
+    <!-- MAIN CONTAINER -->
+    <!-- ======================================================================== -->
+    <div class="container">
+        <!-- Trading Panel -->
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-plus-circle"></i>
+                        Place Order
+                    </span>
+                </div>
+                <div class="order-panel">
+                    <div class="order-input">
+                        <label>Symbol</label>
+                        <select id="symbol">
+                            <option>NIFTY 28000 CE</option>
+                            <option>NIFTY 27500 PE</option>
+                            <option>BANKNIFTY 44000 CE</option>
+                        </select>
+                    </div>
+                    <div class="order-input">
+                        <label>Quantity</label>
+                        <input type="number" id="qty" value="1" min="1">
+                    </div>
+                    <div class="order-input">
+                        <label>Price</label>
+                        <input type="number" id="price" value="125.50" step="0.05">
+                    </div>
+                    <div class="order-input">
+                        <label>Order Type</label>
+                        <select id="order-type">
+                            <option>LIMIT</option>
+                            <option>MARKET</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="order-buttons">
+                    <button class="btn-buy" onclick="placeOrder('BUY')">
+                        <i class="fas fa-arrow-up"></i> BUY
+                    </button>
+                    <button class="btn-sell" onclick="placeOrder('SELL')">
+                        <i class="fas fa-arrow-down"></i> SELL
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-sliders-h"></i>
+                        Greeks Exposure
+                    </span>
+                    <button class="btn-icon" onclick="refreshGreeks()">
+                        <i class="fas fa-sync"></i>
+                    </button>
+                </div>
+                <div class="heatmap-container">
+                    <div class="heatmap-cell positive">
+                        <div class="heatmap-label">Delta</div>
+                        <div class="heatmap-value">+0.45</div>
+                    </div>
+                    <div class="heatmap-cell positive">
+                        <div class="heatmap-label">Gamma</div>
+                        <div class="heatmap-value">0.08</div>
+                    </div>
+                    <div class="heatmap-cell positive">
+                        <div class="heatmap-label">Theta</div>
+                        <div class="heatmap-value">+0.65</div>
+                    </div>
+                    <div class="heatmap-cell negative">
+                        <div class="heatmap-label">Vega</div>
+                        <div class="heatmap-value">-0.12</div>
+                    </div>
+                    <div class="heatmap-cell positive">
+                        <div class="heatmap-label">IV</div>
+                        <div class="heatmap-value">28.5%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-chart-line"></i>
+                        NIFTY Price
+                    </span>
+                    <button class="btn-icon" onclick="toggleChart('price')">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                </div>
+                <div id="price-chart" class="chart-container"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-chart-area"></i>
+                        P&L Curve
+                    </span>
+                </div>
+                <div id="pnl-chart" class="chart-container"></div>
+            </div>
+        </div>
+
+        <!-- Positions & Trades -->
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-list"></i>
+                        Open Positions
+                    </span>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Qty</th>
+                                <th>Entry</th>
+                                <th>LTP</th>
+                                <th>P&L</th>
+                            </tr>
+                        </thead>
+                        <tbody id="positions-table">
+                            <tr>
+                                <td><strong>NIFTY 28000 CE</strong></td>
+                                <td>1</td>
+                                <td>₹125.50</td>
+                                <td>₹138.75</td>
+                                <td><span class="badge success">+₹1,325</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-history"></i>
+                        Recent Trades
+                    </span>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Symbol</th>
+                                <th>Type</th>
+                                <th>P&L</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trades-table">
+                            <tr>
+                                <td>14:35:22</td>
+                                <td>NIFTY 28000 CE</td>
+                                <td><span class="badge success">BUY</span></td>
+                                <td><span class="badge success">+₹2,150</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Health -->
+        <div class="grid-full">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-heartbeat"></i>
+                        System Health
+                    </span>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Component</th>
+                                <th>Status</th>
+                                <th>Latency</th>
+                                <th>Uptime</th>
+                                <th>Last Check</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Broker API</strong></td>
+                                <td><span class="badge success">Connected</span></td>
+                                <td>45ms</td>
+                                <td>99.95%</td>
+                                <td id="api-check">2:37 PM</td>
+                            </tr>
+                            <tr>
+                                <td><strong>WebSocket Stream</strong></td>
+                                <td><span class="badge success">Active</span></td>
+                                <td>12ms</td>
+                                <td>99.98%</td>
+                                <td id="ws-check">2:37 PM</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Database</strong></td>
+                                <td><span class="badge success">Healthy</span></td>
+                                <td>8ms</td>
+                                <td>100%</td>
+                                <td id="db-check">2:37 PM</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Greeks Calculator</strong></td>
+                                <td><span class="badge success">Running</span></td>
+                                <td>78ms</td>
+                                <td>98.5%</td>
+                                <td id="greeks-check">2:37 PM</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Charts
+        function initCharts() {
+            // P&L Chart with Chart.js
+            const pnlCtx = document.getElementById('pnl-chart').getContext('2d');
+            new Chart(pnlCtx, {
+                type: 'line',
+                data: {
+                    labels: ['9:30', '10:15', '11:00', '12:30', '13:45', '14:30'],
+                    datasets: [{
+                        label: 'Cumulative P&L',
+                        data: [500, 1200, 2100, 1850, 3200, 12450],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#667eea',
+                        pointBorderColor: 'white',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+
+            // Price Chart with TradingView Lightweight Charts
+            const priceContainer = document.getElementById('price-chart');
+            const chart = LightweightCharts.createChart(priceContainer, {
+                layout: { background: { color: '#fff' } },
+                width: priceContainer.clientWidth,
+                height: 400
+            });
+
+            const candleSeries = chart.addCandlestickSeries();
+            candleSeries.setData([
+                { time: '2026-01-12', open: 27800, high: 27900, low: 27750, close: 27850 },
+                { time: '2026-01-11', open: 27750, high: 27950, low: 27700, close: 27850 },
+                { time: '2026-01-10', open: 27650, high: 27850, low: 27600, close: 27750 }
+            ]);
+
+            chart.timeScale().fitContent();
+
+            window.addEventListener('resize', () => {
+                chart.applyOptions({ width: priceContainer.clientWidth });
+            });
+        }
+
+        // Real-time update simulation
+        function startLiveUpdates() {
+            setInterval(() => {
+                const nifty = 27850 + Math.random() * 100 - 50;
+                document.getElementById('nifty-ltp').textContent = nifty.toFixed(0);
+                
+                const pnl = 12450 + Math.random() * 1000 - 500;
+                document.getElementById('total-pnl').textContent = '+₹' + pnl.toFixed(0);
+                
+                document.querySelector('[id="api-check"]').textContent = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+            }, 1000);
+        }
+
+        // Place Order
+        function placeOrder(side) {
+            const symbol = document.getElementById('symbol').value;
+            const qty = document.getElementById('qty').value;
+            const price = document.getElementById('price').value;
+            
+            alert(`Order placed!\n${side} ${qty} × ${symbol} @ ₹${price}`);
+        }
+
+        // Refresh Greeks
+        function refreshGreeks() {
+            console.log('Refreshing Greeks...');
+        }
+
+        // Toggle Chart
+        function toggleChart(type) {
+            console.log('Toggling ' + type + ' chart');
+        }
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            initCharts();
+            startLiveUpdates();
+        });
+    </script>
+</body>
+</html>
