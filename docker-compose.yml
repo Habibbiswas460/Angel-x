@@ -64,8 +64,8 @@ services:
       - angel-x-network
     depends_on:
       postgres:
-      redis:
         condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
@@ -88,7 +88,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./infra/database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     ports:
-      - "${DATABASE_PORT:-5432}:5432"
+      - "15432:5432"
     networks:
       - angel-x-network
     healthcheck:
@@ -112,7 +112,9 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 5s)
+      timeout: 5s
+      retries: 5
+
   prometheus:
     image: prom/prometheus:latest
     container_name: angel-x-prometheus
@@ -148,9 +150,6 @@ services:
       - angel-x-network
     profiles:
       - monitoring
-      - monitoring
-    depends_on:
-      - angel-x
     depends_on:
       - prometheus
 
@@ -160,9 +159,7 @@ networks:
 
 volumes:
   postgres-data:
-  prometheus-data:
-  grafana-data:
-  driver: local
+    driver: local
   redis-data:
     driver: local
   prometheus-data:
