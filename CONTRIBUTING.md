@@ -27,7 +27,7 @@ We are committed to providing a welcoming and inspiring community for all. We ex
 
 2. **Clone Your Fork**
    ```bash
-   git clone https://github.com/YOUR-USERNAME/Angel-x.git
+   git clone https://github.com/habibbiswa460/Angel-x.git
    cd Angel-x
    ```
 
